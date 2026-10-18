@@ -1,0 +1,5 @@
+User-agent: *
+Disallow: /i/
+Disallow: /k/
+Disallow: /s/
+Disallow: /events

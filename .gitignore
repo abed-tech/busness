@@ -1,0 +1,13 @@
+node_modules
+.next
+.env*.local
+.env
+*.log
+packages/core/test/.core.mjs
+apps/web/lib/webhooks/.verify.mjs
+packages/server/test/.bundle.cjs
+scripts/test-integration/.*.cjs
+
+# Render / Vercel : dossiers locaux
+.render
+.vercel

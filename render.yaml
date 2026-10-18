@@ -1,0 +1,86 @@
+# Blueprint Render : TOUT est hébergé sur Render.
+#  - 1 base PostgreSQL 16 (données, comptes, sessions, photos)
+#  - 2 services web Node, un par domaine (jamais le même) :
+#      ceremonia-app  : organisateurs, invitations (/i), contrôleurs et serveurs (/k), page Service (/s), API REST v1, webhooks
+#      cer-console-…  : super administrateur (second facteur obligatoire)
+# Les migrations s'appliquent automatiquement au démarrage (scripts/render-start.sh). Les tâches planifiées tournent dans
+# ceremonia-app : aucun service supplémentaire. Aucun secret ici : « sync: false » demande la saisie dans Render.
+databases:
+  - name: ceremonia-db
+    databaseName: ceremonia
+    user: ceremonia
+    # plan non précisé : plus petite base payante par défaut (la base « free » expire après 30 jours)
+    region: frankfurt
+    postgresMajorVersion: "16"
+    ipAllowList: []        # aucune connexion depuis Internet ; ajoutez votre adresse IP le temps de créer l'admin
+
+services:
+  - type: web
+    name: ceremonia-app
+    runtime: node
+    plan: starter          # « free » possible pour essayer, mais le service s'endort après 15 min (gênant le jour J)
+    region: frankfurt
+    branch: main
+    autoDeploy: true
+    buildCommand: bash scripts/render-build.sh web
+    startCommand: bash scripts/render-start.sh web
+    healthCheckPath: /api/health
+    buildFilter:
+      paths: ["apps/web/**", "packages/**", "db/migrations/**", "scripts/render-*.sh", "package.json", "pnpm-workspace.yaml", "pnpm-lock.yaml"]
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ceremonia-db
+          property: connectionString
+      - key: ORGANIZER_ORIGIN       # URL de ce service, ex. https://ceremonia-app.onrender.com (sans / final)
+        sync: false
+      - key: ADMIN_ORIGIN           # URL du service admin ci-dessous
+        sync: false
+      - key: RESEND_API_KEY         # facultatif : e-mails de confirmation et de mot de passe oublié
+        sync: false
+      - key: MAIL_FROM              # ex. Cérémonia <no-reply@votre-domaine>
+        sync: false
+      - key: STRIPE_SECRET_KEY      # facultatif : vide = carte désactivée
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: CINETPAY_API_KEY       # facultatif : vide = mobile money désactivé
+        sync: false
+      - key: CINETPAY_SITE_ID
+        sync: false
+      - key: CINETPAY_SECRET_KEY
+        sync: false
+
+  - type: web
+    name: cer-console-tmj4sb22
+    runtime: node
+    plan: starter
+    region: frankfurt
+    branch: main
+    autoDeploy: true
+    buildCommand: bash scripts/render-build.sh admin
+    startCommand: bash scripts/render-start.sh admin
+    healthCheckPath: /api/health
+    buildFilter:
+      paths: ["apps/admin/**", "packages/**", "db/migrations/**", "scripts/render-*.sh", "package.json", "pnpm-workspace.yaml", "pnpm-lock.yaml"]
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ceremonia-db
+          property: connectionString
+      - key: ADMIN_ORIGIN           # URL de ce service, ex. https://cer-console-tmj4sb22.onrender.com
+        sync: false
+      - key: ORGANIZER_ORIGIN
+        sync: false
+      - key: ADMIN_IDLE_MINUTES
+        value: "30"
+      - key: DISABLE_SCHEDULER      # les tâches planifiées tournent dans ceremonia-app
+        value: "1"

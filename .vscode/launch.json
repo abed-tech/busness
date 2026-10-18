@@ -1,0 +1,28 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Organisateur (Next.js, port 3000)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "pnpm dev:web",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "Admin (Next.js, port 3100)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "pnpm dev:admin",
+      "cwd": "${workspaceFolder}"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Les deux applications",
+      "configurations": [
+        "Organisateur (Next.js, port 3000)",
+        "Admin (Next.js, port 3100)"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "name": "@ceremonia/server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Accès serveur à PostgreSQL (règles RLS conservées), authentification, photos, tâches planifiées.",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p .",
+    "test": "node test/build.mjs && node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.5",
+    "@types/pg": "^8.11.10",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.6.3"
+  }
+}

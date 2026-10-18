@@ -1,0 +1,45 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "1. Démarrer la base locale (Docker)",
+      "type": "shell",
+      "command": "pnpm db:start",
+      "problemMatcher": []
+    },
+    {
+      "label": "2. Créer les fichiers .env.local",
+      "type": "shell",
+      "command": "pnpm setup:env",
+      "problemMatcher": []
+    },
+    {
+      "label": "3. Lancer les deux applications",
+      "type": "shell",
+      "command": "pnpm dev",
+      "problemMatcher": [],
+      "isBackground": true
+    },
+    {
+      "label": "Réinitialiser la base (migrations + démo)",
+      "type": "shell",
+      "command": "pnpm db:reset",
+      "problemMatcher": []
+    },
+    {
+      "label": "Tests (logique + webhooks)",
+      "type": "shell",
+      "command": "pnpm test",
+      "problemMatcher": [],
+      "group": "test"
+    },
+    {
+      "label": "Vérifier les types",
+      "type": "shell",
+      "command": "pnpm typecheck",
+      "problemMatcher": [
+        "$tsc"
+      ]
+    }
+  ]
+}

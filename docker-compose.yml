@@ -1,0 +1,21 @@
+# Base PostgreSQL LOCALE pour le développement (identique à Render : PostgreSQL 16). Aucune donnée en ligne n'est touchée.
+#   pnpm db:up      démarre la base      pnpm db:down     l'arrête      pnpm db:reset    la vide et la recrée
+services:
+  db:
+    image: postgres:16
+    container_name: ceremonia-db
+    environment:
+      POSTGRES_USER: ceremonia
+      POSTGRES_PASSWORD: ceremonia-local
+      POSTGRES_DB: ceremonia
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - ceremonia-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ceremonia -d ceremonia"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+volumes:
+  ceremonia-db:

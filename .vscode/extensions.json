@@ -1,0 +1,7 @@
+{
+  "recommendations": [
+    "denoland.vscode-deno",
+    "ms-ossdata.vscode-pgsql",
+    "streetsidesoftware.code-spell-checker-french"
+  ]
+}

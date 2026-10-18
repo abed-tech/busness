@@ -1,0 +1,33 @@
+{
+  "name": "ceremonia",
+  "private": true,
+  "packageManager": "pnpm@9.12.0",
+  "scripts": {
+    "setup:env": "node scripts/setup-env.mjs",
+    "db:up": "docker compose up -d --wait db",
+    "db:down": "docker compose down",
+    "db:migrate": "node packages/server/scripts/migrate.mjs db/migrations",
+    "db:seed": "node packages/server/scripts/seed.mjs",
+    "db:reset": "docker compose down -v && docker compose up -d --wait db && pnpm db:migrate && pnpm db:seed",
+    "db:start": "pnpm db:up && pnpm db:migrate && pnpm db:seed",
+    "admin:create": "node packages/server/scripts/create-admin.mjs",
+    "dev": "pnpm --parallel --filter @ceremonia/web --filter @ceremonia/admin dev",
+    "dev:web": "pnpm --filter @ceremonia/web dev",
+    "dev:admin": "pnpm --filter @ceremonia/admin dev",
+    "dev:confirm-payment": "node packages/server/scripts/confirm-payment.mjs",
+    "build": "pnpm --filter @ceremonia/web build && pnpm --filter @ceremonia/admin build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm --filter @ceremonia/core test && pnpm test:functions",
+    "test:functions": "esbuild apps/web/lib/webhooks/verify.ts --format=esm --outfile=apps/web/lib/webhooks/.verify.mjs && node --test apps/web/lib/webhooks/verify.test.mjs",
+    "test:db": "bash db/tests/run.sh && bash db/tests/20_concurrency.sh && bash db/tests/30_seed.sh",
+    "test:server": "pnpm --filter @ceremonia/server test",
+    "test:integration": "node scripts/test-integration/build.mjs && node --test scripts/test-integration/flow.test.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0",
+    "typescript": "^5.6.3"
+  },
+  "engines": {
+    "node": ">=20.18"
+  }
+}
