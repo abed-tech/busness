@@ -4,6 +4,7 @@ import type { InvitationData } from "@/lib/invitation";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Votre invitation · Cérémonia", robots: { index: false, follow: false } };
+export const viewport = { width: "device-width", initialScale: 1, themeColor: "#F5EFE5", viewportFit: "cover" };
 
 export default async function InvitationPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
