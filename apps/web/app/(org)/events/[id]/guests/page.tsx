@@ -3,7 +3,7 @@ import { readiness, KIND_LABEL } from "@ceremonia/core";
 import { requireOrganizer } from "@/lib/auth";
 import { loadEvent, loadGuests, loadCatalog, canWrite } from "@/lib/event";
 import { PageHeader, Empty, Notice } from "@/components/ui";
-import { GuestAdd } from "@/components/GuestAdd";
+import { SearchAdd } from "@/components/SearchAdd";
 import { plur } from "@/lib/format";
 
 const FILTERS = [["all", "Toutes"], ["todo", "À compléter"], ["ready", "Prêtes"], ["yes", "Présence confirmée"], ["no", "Déclinées"], ["wait", "Sans réponse"]] as const;
@@ -30,16 +30,11 @@ export default async function Guests({ params, searchParams }: { params: Promise
       <PageHeader eyebrow="Préparer" title="Invités" sub={`${plur(guests.length, "invitation")} · ${plur(persons, "personne")} · un couple compte pour deux`} />
       {sp.saved && <Notice tone="ok">Invité enregistré.</Notice>}
       {sp.deleted && <Notice tone="ok">Invité supprimé.</Notice>}
-      {write && <div style={{ marginBottom: 16 }}><GuestAdd eventId={id} prefix={ev.phone_prefix} /></div>}
-      <form className="sticky-tools" role="search">
-        <input className="in" name="q" defaultValue={sp.q || ""} placeholder="Rechercher un nom, un numéro ou un code" aria-label="Rechercher" />
-        <input type="hidden" name="f" value={f} />
-        <button className="btn ghost" type="submit">Rechercher</button>
-      </form>
+      <SearchAdd q={sp.q} placeholder="Rechercher un nom, un numéro ou un code" hidden={{ f }} addHref={write ? `/events/${id}/guests/new` : undefined} addLabel="Ajouter des invités" />
       <nav className="seg" aria-label="Filtres" style={{ marginBottom: 12, flexWrap: "wrap" }}>
         {FILTERS.map(([k, l]) => <Link key={k} href={`/events/${id}/guests?f=${k}${sp.q ? "&q=" + encodeURIComponent(sp.q) : ""}`} aria-current={f === k ? "true" : undefined}>{l}</Link>)}
       </nav>
-      {!guests.length ? <Empty>Aucun invité. Ajoutez-les un par un, collez une liste ou importez un fichier.</Empty> : !list.length ? <Empty>Aucun invité ne correspond.</Empty> : (
+      {!guests.length ? <Empty>Aucun invité.{write && <> Touchez « + » pour les ajouter un par un, importer une liste ou en coller une.</>}</Empty> : !list.length ? <Empty>Aucun invité ne correspond.</Empty> : (
         <div className="list">
           {list.map((g) => {
             const r = R.get(g.id)!;

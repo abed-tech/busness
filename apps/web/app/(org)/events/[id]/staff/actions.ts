@@ -1,7 +1,9 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { randomInt } from "node:crypto";
 import { requireOrganizer, rpc } from "@/lib/auth";
+import { parseStaff, STAFF_LIST_MAX } from "@/lib/staff";
 import type { ActionState } from "@/components/ConfirmAction";
 
 export type CreatedState = (ActionState & { created?: { id: string; code: string; name: string; password: string } }) | null;
@@ -18,6 +20,30 @@ export async function createStaff(_: CreatedState, fd: FormData): Promise<Create
   revalidatePath(`/events/${id}/staff/${role}`);
   // le mot de passe n'est renvoyé qu'une fois, à son auteur, pour être transmis ; il n'est jamais stocké en clair
   return { ok: true, created: { id: r.data.id, code: r.data.access_code, name, password } };
+}
+
+export type CreatedListState = (ActionState & { created?: { id: string; code: string; name: string; password: string }[] }) | null;
+
+const PW = "abcdefghjkmnpqrstuvwxyz23456789";
+
+/** Création en lot (liste collée ou importée) : même RPC et mêmes règles que createStaff, mot de passe généré s'il manque. */
+export async function createStaffList(_: CreatedListState, fd: FormData): Promise<CreatedListState> {
+  await requireOrganizer();
+  const id = String(fd.get("event_id")), role = String(fd.get("role"));
+  if (role !== "controller" && role !== "server") return { ok: false, message: "Rôle invalide." };
+  const p = parseStaff(String(fd.get("list") || ""));
+  if (!p.rows.length) return { ok: false, message: "Aucune ligne exploitable. Une personne par ligne : Nom ; Mot de passe (facultatif)." };
+  if (p.rows.length > STAFF_LIST_MAX) return { ok: false, message: `${STAFF_LIST_MAX} personnes au maximum par envoi.` };
+  const created: NonNullable<NonNullable<CreatedListState>["created"]> = [], failed: string[] = [];
+  for (const row of p.rows) {
+    const password = row.password || Array.from({ length: 10 }, () => PW[randomInt(PW.length)]).join("");
+    const r = await rpc<{ id: string; access_code: string }>("create_staff", { p_event: id, p_role: role, p_name: row.name, p_password: password });
+    if (r.ok) created.push({ id: r.data.id, code: r.data.access_code, name: row.name, password });
+    else failed.push(`${row.name} : ${r.message}`);
+  }
+  if (created.length) revalidatePath(`/events/${id}/staff/${role}`);
+  const msg = `${created.length} accès créé(s).${failed.length ? ` Échec pour ${failed.join(" · ")}` : ""}`;
+  return { ok: created.length > 0, message: msg, created };
 }
 
 export async function setRevoked(_: ActionState, fd: FormData): Promise<ActionState> {

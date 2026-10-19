@@ -5,9 +5,10 @@ import { addGuest, addGuestList } from "@/app/(org)/events/[id]/guests/actions";
 import { readGuestFile } from "@/lib/client/readGuestFile";
 import type { ActionState } from "@/components/ConfirmAction";
 
+const TITLE = { one: "Ajouter un invité", paste: "Coller une liste", file: "Importer une liste" };
+
 /** Trois façons d'ajouter des invités : un par un, liste collée, fichier Excel ou CSV. */
-export function GuestAdd({ eventId, prefix }: { eventId: string; prefix: string }) {
-  const [mode, setMode] = useState<"one" | "paste" | "file">("one");
+export function GuestAdd({ eventId, prefix, mode }: { eventId: string; prefix: string; mode: "one" | "paste" | "file" }) {
   const [list, setList] = useState("");
   const [fileName, setFileName] = useState("");
   const [err, setErr] = useState("");
@@ -16,14 +17,7 @@ export function GuestAdd({ eventId, prefix }: { eventId: string; prefix: string 
   const p = list.trim() ? parseGuests(list, prefix) : null;
   return (
     <section className="card form">
-      <div className="row" style={{ justifyContent: "space-between" }}>
-        <h2 style={{ margin: 0 }}>Ajouter des invités</h2>
-        <div className="seg">
-          <button type="button" aria-pressed={mode === "one"} onClick={() => setMode("one")}>Un invité</button>
-          <button type="button" aria-pressed={mode === "paste"} onClick={() => setMode("paste")}>Coller une liste</button>
-          <button type="button" aria-pressed={mode === "file"} onClick={() => setMode("file")}>Importer un fichier</button>
-        </div>
-      </div>
+      <h2 style={{ margin: 0 }}>{TITLE[mode]}</h2>
       {mode === "one" ? (
         <form action={run1} className="form" key="one">
           <input type="hidden" name="event_id" value={eventId} />
@@ -36,7 +30,7 @@ export function GuestAdd({ eventId, prefix }: { eventId: string; prefix: string 
           <div><button className="btn" disabled={p1}>{p1 ? "Ajout…" : "Ajouter"}</button></div>
         </form>
       ) : (
-        <form action={run2} className="form" key="list">
+        <form action={run2} className="form" key={mode}>
           <input type="hidden" name="event_id" value={eventId} />
           {mode === "file" && (
             <div className="row">
