@@ -189,6 +189,25 @@ dialog.dlg::backdrop { background: rgba(3, 6, 12, .7); }
 .searchadd-f .in { min-height: 44px; padding-left: 38px; }
 .addbtn { flex: none; width: 44px; min-height: 44px; padding: 0; font-size: 1.6rem; font-weight: 400; line-height: 1; }
 
+.searchadd-f .in::-webkit-search-cancel-button { display: none; }
+.searchadd-x { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-size: 1.4rem; line-height: 1; cursor: pointer; }
+.searchadd-x:hover { color: var(--fg); background: var(--panel-2); }
+.searchadd-f:has(.searchadd-x) .in { padding-right: 42px; }
+
+/* partage d'une invitation */
+.share { position: relative; display: inline-flex; }
+.share-btn { width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 9px; color: var(--accent); }
+.share-btn:disabled { opacity: .4; cursor: not-allowed; }
+.share-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; min-width: 210px; display: grid; padding: 6px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 12px 30px rgba(0,0,0,.45); }
+.share-menu button { text-align: left; padding: 10px 12px; border: 0; border-radius: 7px; background: none; color: var(--fg); cursor: pointer; font-size: .92rem; }
+.share-menu button:hover, .share-menu button:focus-visible { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+.share-note { position: absolute; right: 0; top: calc(100% + 6px); z-index: 19; white-space: nowrap; font-size: .78rem; padding: 6px 10px; border-radius: 8px; background: var(--panel-2); border: 1px solid color-mix(in srgb, var(--ok) 45%, var(--line)); color: var(--ok); }
+@media (max-width: 520px) { .share-note { white-space: normal; width: min(240px, 70vw); } }
+
+/* barre d'action fixe en bas de l'envoi des invitations */
+.sendbar { position: sticky; bottom: 0; z-index: 6; display: grid; gap: 6px; justify-items: stretch; margin-top: 6px; padding: 12px 0 calc(12px + env(safe-area-inset-bottom, 0px)); background: color-mix(in srgb, var(--bg) 94%, transparent); border-top: 1px solid var(--line); backdrop-filter: blur(10px); }
+.sendbar .hint { margin: 0; text-align: center; }
+
 /* choix du mode d'ajout */
 .addmodes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .addmode { display: flex; flex-direction: column; gap: 12px; padding: 18px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); color: var(--fg); }
@@ -208,7 +227,15 @@ dialog.dlg::backdrop { background: rgba(3, 6, 12, .7); }
 .li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 14px; border: 1px solid var(--line); border-radius: 11px; background: var(--panel); }
 .li b { display: block; font-weight: 500; }
 .li small { color: var(--muted); font-size: .82rem; }
-.evrow > span:not(.evthumb):not(.badge) { overflow-wrap: anywhere; }
+.evrow { padding: 0 14px 0 0; }
+.evlink { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 13px 0 13px 14px; }
+.evlink > span:not(.evthumb):not(.badge) { overflow-wrap: anywhere; }
+.evrow:has(.evlink:hover) { border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
+@media (max-width: 520px) {
+  .evrow { flex-wrap: wrap; padding: 0 14px 12px 0; }
+  .evrow .evlink { flex-basis: 100%; padding-bottom: 8px; }
+  .evrow > .btn { margin-left: 14px; }
+}
 .evthumb { flex: none; width: 52px; height: 52px; border-radius: 9px; overflow: hidden; background: var(--panel-2); display: grid; place-items: center; }
 .evthumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .evthumb i { font-style: normal; font-family: var(--f-display); font-size: 1.5rem; color: var(--accent); }

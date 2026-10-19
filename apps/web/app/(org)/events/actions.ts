@@ -117,6 +117,19 @@ export async function removePhoto(_: ActionState, fd: FormData): Promise<ActionS
   return { ok: true, message: "Photo retirée." };
 }
 
+/** Suppression par le propriétaire, confirmée en recopiant le nom ; droits et purge vérifiés par la base (delete_my_event). */
+export async function deleteEvent(_: ActionState, fd: FormData): Promise<ActionState> {
+  await requireOrganizer();
+  const id = String(fd.get("event_id"));
+  if (!/^[0-9a-f-]{36}$/.test(id)) return fail("Événement introuvable.");
+  const sb = await serverClient();
+  const { error } = await sb.rpc("delete_my_event", { p_event: id, p_confirm_title: String(fd.get("confirm") || "") });
+  if (error) return fail(humanError(error.message, error.code));
+  revalidatePath("/events");
+  revalidatePath(`/events/${id}`, "layout");
+  redirect("/events?deleted=1");
+}
+
 export async function rotateServiceKey(_: ActionState, fd: FormData): Promise<ActionState> {
   await requireOrganizer();
   const id = String(fd.get("event_id"));

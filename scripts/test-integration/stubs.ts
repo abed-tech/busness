@@ -17,6 +17,10 @@ export function revalidatePath() {}
 export function cache<T>(f: T): T { return f; }
 // composants client rendus dans les tests de pages : effets ignorés, routeur inerte
 export function useEffect() {}
+export function useRef<T>(v: T | null = null) { return { current: v }; }
+export function useId() { return "id"; }
+export function useState<T>(v: T) { return [v, () => {}] as const; }
+export function useActionState<S>(_a: unknown, init: S) { return [init, () => {}, false] as const; }
 export function useRouter() { return { refresh() {}, replace() {}, push() {} }; }
 export class NextResponse extends Response {
   static redirect(url: string | URL, status = 307) { return new Response(null, { status, headers: { location: String(url) } }); }

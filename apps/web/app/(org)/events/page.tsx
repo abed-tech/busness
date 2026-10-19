@@ -4,6 +4,8 @@ import { serverClient } from "@/lib/data/server";
 import { PageHeader, Empty, Notice } from "@/components/ui";
 import { date, TYPE_LABEL, plur } from "@/lib/format";
 import { photoUrl } from "@/lib/event";
+import { ConfirmAction } from "@/components/ConfirmAction";
+import { deleteEvent } from "./actions";
 
 type Row = { id: string; title: string; type: string; event_date: string; venue: string; status: string; billing: string; owner_id: string | null; organizer_id: string | null; photos: string[] };
 
@@ -26,18 +28,28 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
   }
   const today = new Date().toISOString().slice(0, 10);
   const upcoming = rows.filter((r) => r.event_date >= today), past = rows.filter((r) => r.event_date < today);
+  // suppression : propriétaire seulement, événement et compte actifs (la base revérifie dans delete_my_event)
+  const canDelete = (e: Row) => e.owner_id === me.id && e.status === "active" && me.status === "active";
   const Item = ({ e }: { e: Row }) => (
-    <Link className="li evrow" href={`/events/${e.id}`}>
-      <span className="evthumb" aria-hidden="true">{e.photos?.[0] ? <img src={photoUrl(e.photos[0])} alt="" loading="lazy" /> : <i>{(e.title.trim()[0] || "·").toUpperCase()}</i>}</span>
-      <span style={{ flex: 1, minWidth: 0 }}><b>{e.title}</b><small>{TYPE_LABEL[e.type]} · {date(e.event_date)} · {e.venue} · {countError ? "invitations non comptées" : plur(counts.get(e.id) || 0, "invitation")}{e.billing === "free_admin" ? " · offert" : ""}</small></span>
-      {e.status === "suspended" ? <span className="badge bad">Suspendu</span> : <span className="badge ok">Actif</span>}
-      <span aria-hidden="true">›</span>
-    </Link>
+    <div className="li evrow">
+      <Link className="evlink" href={`/events/${e.id}`}>
+        <span className="evthumb" aria-hidden="true">{e.photos?.[0] ? <img src={photoUrl(e.photos[0])} alt="" loading="lazy" /> : <i>{(e.title.trim()[0] || "·").toUpperCase()}</i>}</span>
+        <span style={{ flex: 1, minWidth: 0 }}><b>{e.title}</b><small>{TYPE_LABEL[e.type]} · {date(e.event_date)} · {e.venue} · {countError ? "invitations non comptées" : plur(counts.get(e.id) || 0, "invitation")}{e.billing === "free_admin" ? " · offert" : ""}</small></span>
+        {e.status === "suspended" ? <span className="badge bad">Suspendu</span> : <span className="badge ok">Actif</span>}
+        <span aria-hidden="true">›</span>
+      </Link>
+      {canDelete(e) && (
+        <ConfirmAction action={deleteEvent} danger label="Supprimer" title={`Supprimer « ${e.title} » ?`}
+          body={`Cette action est définitive. Les invités, leurs réponses et leurs choix, les tables, le personnel et les photos de cet événement seront effacés, et les liens d’invitation déjà envoyés cesseront de fonctionner. ${counts.get(e.id) ? `Cet événement compte ${plur(counts.get(e.id)!, "invitation")}. ` : ""}Les paiements déjà effectués restent enregistrés mais ne sont pas remboursés.`}
+          needText={e.title} confirmLabel="Supprimer définitivement" hidden={{ event_id: e.id }} />
+      )}
+    </div>
   );
   return (
     <main className="org-main">
       <PageHeader eyebrow={`Bonjour ${me.username}`} title="Mes événements" actions={me.status === "active" && <Link className="btn" href="/events/new">+ Nouvel événement</Link>} />
       {sp.pw && <Notice tone="ok">Mot de passe modifié.</Notice>}
+      {sp.deleted && <Notice tone="ok">Événement supprimé.</Notice>}
       {countError && <Notice tone="bad">Le nombre d’invitations n’a pas pu être chargé. Les événements ci-dessous sont à jour.</Notice>}
       {error ? (
         <div className="error-box" role="alert">

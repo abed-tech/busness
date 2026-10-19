@@ -175,6 +175,32 @@ test("Suivi de présence : entrées chargées avec le nom de l'invité", async (
   assert.ok(text.includes(GUESTS[1].name), "nom de l'invité entré affiché");
 });
 
+test("suppression d'un événement : confirmation exigée, autre compte refusé, purge réelle, liste à jour", async () => {
+  const ev = await W.loadEvent(EV);
+  const token = GUESTS[0].invite_token;
+  assert.ok((await S.dataClient(S.ANON).rpc("get_invitation", { p_token: token })).data, "invitation ouverte avant suppression");
+  // nom mal recopié : refusé, rien n'est supprimé
+  const bad = await W.events.deleteEvent(null, fdOf({ event_id: EV, confirm: "pas le bon nom" }));
+  assert.equal(bad.ok, false); assert.match(bad.message, /Recopiez exactement/);
+  assert.ok((await eventsOnPage()).some((e) => e.id === EV));
+  // autre compte (créé plus haut) : refusé par la base
+  const saved = W.stubs.jar.get("cer-org");
+  W.stubs.jar.clear();
+  await redirected(W.authActions.login(null, fdOf({ email: `autre-${u}@test.cd`, password: pw })));
+  const other = await W.events.deleteEvent(null, fdOf({ event_id: EV, confirm: ev.title }));
+  assert.equal(other.ok, false, "un autre compte ne peut pas supprimer");
+  W.stubs.jar.clear(); W.stubs.jar.set("cer-org", saved);
+  // propriétaire, nom exact : supprimé, redirection vers la liste
+  const r = await redirected(W.events.deleteEvent(null, fdOf({ event_id: EV, confirm: ev.title })));
+  assert.equal(r.url, "/events?deleted=1");
+  assert.ok(!(await eventsOnPage()).some((e) => e.id === EV), "absent de la liste (rechargement)");
+  assert.equal((await S.dataClient(S.ANON).rpc("get_invitation", { p_token: token })).data, null, "lien d'invitation désactivé");
+  const left = await S.asOwner((q) => q.query("select (select count(*) from public.guests where event_id = $1)::int as g, (select count(*) from public.event_photo_files where event_id = $1)::int as p, (select count(*) from public.transactions where event_id = $1)::int as t, (select status::text from public.events where id = $1) as s", [EV]));
+  assert.deepEqual({ g: left.rows[0].g, p: left.rows[0].p, s: left.rows[0].s }, { g: 0, p: 0, s: "deleted" });
+  assert.ok(left.rows[0].t >= 1, "transactions conservées");
+  assert.equal((await redirected(W.loadEvent(EV))).url, "404", "page de l'événement introuvable");
+});
+
 test("santé : base joignable", async () => {
   const r = await W.health.GET(new Request("http://x/api/health?db=1")); assert.equal(r.status, 200); assert.equal((await r.json()).db, "ok");
 });
