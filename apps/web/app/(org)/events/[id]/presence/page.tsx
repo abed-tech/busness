@@ -13,14 +13,19 @@ export default async function Presence({ params, searchParams }: { params: Promi
   const sp = await searchParams;
   await loadEvent(id);
   const sb = await serverClient();
-  const [st, { data: entries }] = await Promise.all([
+  // la couche de données ne traduit pas les relations imbriquées : les invités sont lus à part puis associés
+  const [st, { data: rawEntries }, { data: guests }] = await Promise.all([
     rpc<Stats>("event_stats", { p_event: id }),
-    sb.from("entries").select("confirmed_at, staff_name, persons, guests(name, table_no)").eq("event_id", id).order("confirmed_at", { ascending: false }),
+    sb.from("entries").select("confirmed_at, staff_name, persons, guest_id").eq("event_id", id).order("confirmed_at", { ascending: false }),
+    sb.from("guests").select("id, name, table_no").eq("event_id", id),
   ]);
   const s = st.ok ? st.data : null;
-  type E = { confirmed_at: string; staff_name: string; persons: number; guests: { name: string; table_no: number | null } | null };
+  type G = { id: string; name: string; table_no: number | null };
+  type E = { confirmed_at: string; staff_name: string; persons: number; guests: G | null };
+  const byId = new Map(((guests || []) as G[]).map((g) => [g.id, g]));
+  const entries: E[] = ((rawEntries || []) as (Omit<E, "guests"> & { guest_id: string })[]).map((e) => ({ ...e, guests: byId.get(e.guest_id) || null }));
   const q = (sp.q || "").toLowerCase();
-  const list = ((entries || []) as unknown as E[]).filter((e) => !q || (e.guests?.name || "").toLowerCase().includes(q));
+  const list = entries.filter((e) => !q || (e.guests?.name || "").toLowerCase().includes(q));
   return (
     <>
       <PageHeader eyebrow="Jour J" title="Suivi de présence" />
@@ -37,7 +42,7 @@ export default async function Presence({ params, searchParams }: { params: Promi
       )}
       <AutoRefresh seconds={5} />
       <form className="sticky-tools" role="search"><input className="in" name="q" defaultValue={sp.q || ""} placeholder="Rechercher un invité présent" aria-label="Rechercher" /><button className="btn ghost">Rechercher</button></form>
-      {!entries?.length ? <Empty>Aucune entrée confirmée pour l’instant.</Empty> : !list.length ? <Empty>Aucun invité présent ne correspond.</Empty> : (
+      {!entries.length ? <Empty>Aucune entrée confirmée pour l’instant.</Empty> : !list.length ? <Empty>Aucun invité présent ne correspond.</Empty> : (
         <div className="list">
           {list.map((e, i) => (
             <div key={i} className="li">

@@ -18,3 +18,5 @@ export * as apiRpc from "../../apps/web/app/api/v1/rpc/[fn]/route";
 export * as health from "../../apps/web/app/api/health/route";
 export * as server from "@ceremonia/server";
 export { loadEvent } from "../../apps/web/lib/event";
+export { default as eventsPage } from "../../apps/web/app/(org)/events/page";
+export { default as presencePage } from "../../apps/web/app/(org)/events/[id]/presence/page";

@@ -1,7 +1,13 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Logo } from "@/components/ui";
+import { currentSession } from "@/lib/data/server";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  // session vérifiée en base (pas seulement la présence du cookie) : un cookie expiré reste ici, sans aller-retour
+  if (await currentSession()) redirect("/events");
   return (
     <div className="auth">
       <div className="card" style={{ width: "min(520px, 100%)", textAlign: "center", display: "grid", gap: 16 }}>

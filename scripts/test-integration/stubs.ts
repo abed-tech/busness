@@ -15,6 +15,9 @@ export function redirect(url: string): never { throw new RedirectError(url); }
 export function notFound(): never { throw new RedirectError("404"); }
 export function revalidatePath() {}
 export function cache<T>(f: T): T { return f; }
+// composants client rendus dans les tests de pages : effets ignorés, routeur inerte
+export function useEffect() {}
+export function useRouter() { return { refresh() {}, replace() {}, push() {} }; }
 export class NextResponse extends Response {
   static redirect(url: string | URL, status = 307) { return new Response(null, { status, headers: { location: String(url) } }); }
   static json(d: unknown, init: ResponseInit = {}) { return new Response(JSON.stringify(d), { ...init, headers: { "Content-Type": "application/json", ...(init.headers || {}) } }); }

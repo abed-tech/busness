@@ -126,6 +126,55 @@ test("API mobile : connexion par jeton, événements, fonction autorisée, accè
   assert.equal(admin.status, 404, "fonction d'administration hors liste");
 });
 
+// Parcourt l'arbre rendu par un composant serveur (sans React DOM) : éléments, enfants et sous-composants synchrones.
+function collect(node, out = []) {
+  if (node == null || typeof node !== "object") return out;
+  if (Array.isArray(node)) { node.forEach((n) => collect(n, out)); return out; }
+  out.push(node);
+  if (typeof node.type === "function" && !node.type.constructor.name.startsWith("Async")) collect(node.type(node.props), out);
+  collect(node.props?.children, out);
+  return out;
+}
+const eventsOnPage = async () => {
+  const tree = collect(await W.eventsPage({ searchParams: Promise.resolve({}) }));
+  assert.ok(!tree.some((n) => n.props?.className === "error-box"), "aucune erreur de chargement affichée");
+  return tree.filter((n) => n.props?.e?.id).map((n) => n.props.e);
+};
+
+test("Mes événements : les événements réels du compte sont chargés et affichés", async () => {
+  const list = await eventsOnPage();
+  const mine = list.find((e) => e.id === EV);
+  assert.ok(mine, "l'événement créé figure dans la liste");
+  assert.equal(mine.title, "Marc & Nadia " + u); assert.equal(mine.venue, "Salle Le Palmier"); assert.equal(mine.photos.length, 1);
+});
+
+test("Mes événements : après déconnexion puis reconnexion, retour sur la liste (même avec un autre « next »)", async () => {
+  await redirected(W.authActions.logout()); assert.equal(W.stubs.jar.get("cer-org"), undefined);
+  assert.equal((await redirected(W.eventsPage({ searchParams: Promise.resolve({}) }))).url, "/login", "non connecté : passage par la connexion");
+  const r = await redirected(W.authActions.login(null, fdOf({ email, password: pw, next: `/events/${EV}/guests` })));
+  assert.equal(r.url, "/events");
+  assert.ok((await eventsOnPage()).some((e) => e.id === EV), "événement toujours affiché après reconnexion");
+});
+
+test("Mes événements : un autre compte ne voit pas ces événements ; liste vide sans erreur", async () => {
+  const saved = W.stubs.jar.get("cer-org");
+  const other = await S.auth.createUser(`autre-${u}@test.cd`, pw, true, { username: "Autre " + u, phone: "" });
+  assert.ok(other.ok);
+  W.stubs.jar.clear();
+  assert.equal((await redirected(W.authActions.login(null, fdOf({ email: `autre-${u}@test.cd`, password: pw })))).url, "/events");
+  assert.equal((await redirected(W.eventsPage({ searchParams: Promise.resolve({}) }))).url, "/onboarding", "profil à compléter d'abord");
+  assert.equal((await redirected(W.onboarding.createProfile(null, fdOf({ username: "Autre " + u, full_name: "Autre", phone: "" })))).url, "/events");
+  const list = await eventsOnPage();
+  assert.equal(list.length, 0, "aucun événement d'un autre compte");
+  W.stubs.jar.clear(); W.stubs.jar.set("cer-org", saved);
+});
+
+test("Suivi de présence : entrées chargées avec le nom de l'invité", async () => {
+  const tree = collect(await W.presencePage({ params: Promise.resolve({ id: EV }), searchParams: Promise.resolve({}) }));
+  const text = JSON.stringify(tree.map((n) => n.props?.children).filter((c) => typeof c === "string"));
+  assert.ok(text.includes(GUESTS[1].name), "nom de l'invité entré affiché");
+});
+
 test("santé : base joignable", async () => {
   const r = await W.health.GET(new Request("http://x/api/health?db=1")); assert.equal(r.status, 200); assert.equal((await r.json()).db, "ok");
 });

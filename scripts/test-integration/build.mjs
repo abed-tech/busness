@@ -13,7 +13,9 @@ for (const app of ["web", "admin"]) {
     external: process.env.PG_DRIVER ? [] : ["pg"],
     alias: process.env.PG_DRIVER ? { pg: path.resolve(process.env.PG_DRIVER) } : {},
     plugins: [{ name: "stubs", setup(b) {
-      b.onResolve({ filter: /^(next\/headers|next\/navigation|next\/cache|next\/server|server-only|react|qrcode)$/ }, () => ({ path: stub }));
+      // le runtime JSX (dans node_modules) garde le vrai React ; le code de l'application reçoit les remplaçants
+      b.onResolve({ filter: /^(next\/headers|next\/navigation|next\/cache|next\/server|server-only|react|qrcode)$/ }, (a) => (a.path === "react" && a.importer.includes("node_modules") ? undefined : { path: stub }));
+      b.onResolve({ filter: /^next\/link$/ }, () => ({ path: path.join(here, "stub-link.ts") }));
       b.onResolve({ filter: /^@ceremonia\/server$/ }, () => ({ path: path.join(root, "packages/server/src/index.ts") }));
       b.onResolve({ filter: /^@ceremonia\/core$/ }, () => ({ path: path.join(root, "packages/core/src/index.ts") }));
       b.onResolve({ filter: /^@\// }, (a) => { const base = path.join(A, a.path.slice(2)); for (const e of [".ts", ".tsx", "/index.ts"]) if (fs.existsSync(base + e)) return { path: base + e }; });

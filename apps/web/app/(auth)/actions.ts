@@ -6,7 +6,6 @@ import { startSession, endSession } from "@/lib/data/server";
 import { origin } from "@/lib/auth";
 
 export type FormState = { ok?: boolean; message?: string } | null;
-const safeNext = (n: FormDataEntryValue | null) => { const s = String(n || ""); return /^\/(?!\/)[\w\-/?=&%.]*$/.test(s) ? s : "/events"; };
 
 async function isAdminAccount(userId: string): Promise<boolean> {
   // lecture avec l'identité du compte : la règle RLS de admin_users n'autorise que sa propre ligne
@@ -22,7 +21,9 @@ export async function login(_: FormState, fd: FormData): Promise<FormState> {
   if (!r.confirmed) return { message: "Confirmez d’abord votre adresse e-mail (lien reçu par e-mail)." };
   if (await isAdminAccount(r.userId)) return { message: "Ce compte ne peut pas se connecter ici." };
   await startSession(r.userId);
-  redirect(safeNext(fd.get("next")));
+  // « Mes événements » est la page de reprise : on n'y renvoie pas vers la dernière page demandée.
+  // Un compte sans profil est envoyé vers /onboarding par requireOrganizer (étape indispensable).
+  redirect("/events");
 }
 
 const SignupSchema = z.object({
