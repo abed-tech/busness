@@ -182,6 +182,134 @@ export function autoAssign(ev: EventShape, guests: Guest[], opts: { keep: boolea
   return { ok: true, plan, manual, placed: todo.length, kept };
 }
 
+// ---------------- placement proposé (aperçu avant confirmation) ----------------
+export interface SeatingTable { n: number; guests: Guest[]; used: number; free: number; couples: number; singles: number; mixed: boolean }
+export interface SeatingProposal {
+  /** Placements à enregistrer : invités déplacés ou placés (0 = sans table). Les placements conservés n'y figurent pas. */
+  plan: Plan;
+  tables: SeatingTable[];
+  unplaced: Guest[];
+  problems: string[];
+  placed: number;
+  kept: number;
+  mixedTables: number;
+  unknownKind: number;
+}
+
+/**
+ * Répartition proposée, sans rien enregistrer :
+ * - un couple (une invitation de 2 places) n'est jamais séparé et aucune table n'est dépassée ;
+ * - les couples sont regroupés entre eux, les personnes seules entre elles ; on ne mélange que si les tables manquent
+ *   (couples ou personnes seules en surnombre) ou si les personnes seules sont trop peu nombreuses pour une table ;
+ * - à l'intérieur de chaque groupe, les tables sont remplies de façon équilibrée, sur le moins de tables possible ;
+ * - si tout le monde ne tient pas, les invités restants sont listés (jamais ignorés) et le problème est expliqué.
+ */
+export function planSeating(ev: EventShape, guests: Guest[], opts: { keep: boolean }): SeatingProposal {
+  const cap = ev.table_capacity;
+  const tc = cap > 0 ? tableCount(ev, guests) : 0;
+  type T = { n: number; guests: Guest[]; used: number; c: number; s: number };
+  const T: T[] = Array.from({ length: tc }, (_, i) => ({ n: i + 1, guests: [], used: 0, c: 0, s: 0 }));
+  const put = (t: T, g: Guest) => { t.guests.push(g); t.used += seats(g); if (seats(g) === 2) t.c += 2; else t.s += 1; };
+  const room = (t: T) => cap - t.used;
+  let kept = 0;
+  const todo: Guest[] = [];
+  for (const g of guests) {
+    const x = g.table_no || 0;
+    const t = opts.keep && x >= 1 && x <= tc ? T[x - 1] : null;
+    if (t && room(t) >= seats(g)) { put(t, g); kept++; } else todo.push(g);
+  }
+  const couples = todo.filter((g) => seats(g) === 2);
+  const singles = todo.filter((g) => seats(g) === 1);
+  const unplaced: Guest[] = [];
+  const at: Record<string, number> = {};
+  // répartition équilibrée : chaque invité va à la table la moins occupée qui peut l'accueillir
+  const waterfill = (list: Guest[], tables: T[]): Guest[] => {
+    const rest: Guest[] = [];
+    for (const g of list) {
+      let best: T | null = null;
+      for (const t of tables) if (room(t) >= seats(g) && (!best || t.used < best.used || (t.used === best.used && t.n < best.n))) best = t;
+      if (best) { put(best, g); at[g.id] = best.n; } else rest.push(g);
+    }
+    return rest;
+  };
+  const byRoom = (a: T, b: T) => room(b) - room(a) || a.n - b.n;
+
+  // 1. couples : tables déjà « couples », puis tables vides, puis les autres ; le moins de tables possible
+  if (couples.length) {
+    const rank = (t: T) => (t.c > 0 && t.s === 0 ? 0 : t.used === 0 ? 1 : 2);
+    const cand = [...T].sort((a, b) => rank(a) - rank(b) || byRoom(a, b));
+    const chosen: T[] = [];
+    let slots = 0;
+    for (const t of cand) {
+      if (slots >= couples.length) break;
+      const p = Math.floor(room(t) / 2);
+      if (p > 0) { chosen.push(t); slots += p; }
+    }
+    unplaced.push(...waterfill(couples, chosen));
+  }
+
+  // 2. personnes seules : leurs propres tables ; les tables de couples seulement si nécessaire
+  if (singles.length) {
+    const coupleTables = T.filter((t) => t.c > 0);
+    const singleCand = T.filter((t) => t.c === 0).sort((a, b) => (b.s > 0 ? 1 : 0) - (a.s > 0 ? 1 : 0) || byRoom(a, b));
+    const coupleFree = coupleTables.reduce((a, t) => a + room(t), 0);
+    const few = singles.length < Math.ceil(cap / 2) && !singleCand.some((t) => t.s > 0) && coupleFree >= singles.length;
+    let rest = singles;
+    if (few) rest = waterfill(rest, coupleTables);
+    else {
+      const picked: T[] = [];
+      let free = 0;
+      for (const t of singleCand) { if (free >= singles.length) break; if (room(t) > 0) { picked.push(t); free += room(t); } }
+      rest = waterfill(rest, picked);
+      if (rest.length) rest = waterfill(rest, coupleTables);
+    }
+    unplaced.push(...rest);
+  }
+
+  const plan: Plan = {};
+  for (const g of todo) plan[g.id] = at[g.id] || 0;
+  const problems: string[] = [];
+  if (!(cap > 0)) problems.push("Indiquez le nombre de places par table.");
+  else if (unplaced.length) {
+    const need = persons(unplaced);
+    const free = T.reduce((a, t) => a + room(t), 0);
+    const uc = unplaced.filter((g) => seats(g) === 2).length;
+    if (need > free) problems.push(`${unplaced.length} invitation(s) (${need} personne(s)) restent sans place : il manque ${need - free} place(s). Ajoutez ${Math.ceil((need - free) / cap)} table(s) ou augmentez le nombre de places par table.`);
+    else if (uc) problems.push(`${uc} couple(s) restent sans place : aucune table n’a encore 2 places libres côte à côte, et un couple n’est jamais séparé. Ajoutez une table.`);
+  }
+  const unknownKind = todo.filter((g) => !g.kind).length;
+  const tables: SeatingTable[] = T.map((t) => ({ n: t.n, guests: t.guests, used: t.used, free: room(t), couples: t.c / 2, singles: t.s, mixed: t.c > 0 && t.s > 0 }));
+  return { plan, tables, unplaced, problems, placed: todo.length - unplaced.length, kept, mixedTables: tables.filter((t) => t.mixed).length, unknownKind };
+}
+
+// ---------------- formule d'appel de l'invitation ----------------
+const CIVILITY = /^(?:(?:monsieur|m|mr|mme|madame|mlle|mademoiselle)\.?\s+(?:et|&)\s+(?:monsieur|m|mr|mme|madame|mlle|mademoiselle)\.?|monsieur|m\.?|mr\.?|madame|mme\.?|mademoiselle|mlle\.?|couple|famille|les|le couple)\s+/i;
+const TITLE = /^(docteur|dr\.?|professeur|pr\.?|ma[iî]tre|me|pasteur|abb[ée]|p[èe]re|r[ée]v[ée]rend|honorable|son excellence|g[ée]n[ée]ral|colonel|chef)\b/i;
+
+/**
+ * Formule d'appel selon le statut enregistré (Monsieur, Madame, Couple), jamais déduite du prénom.
+ * Les civilités déjà présentes dans le nom ne sont pas répétées ; un titre enregistré (Docteur, Maître…) est conservé.
+ * Sans nom ni statut : formule neutre.
+ */
+export function salutation(g: { name: string; kind: GuestKind | null }): string {
+  const raw = String(g.name || "").replace(/\s+/g, " ").trim();
+  if (!raw) return g.kind === "couple" ? "Chers invités," : g.kind === "mme" ? "Chère Madame," : g.kind === "mr" ? "Cher Monsieur," : "Bonjour,";
+  const first = raw.match(/^(\S+)/)?.[1].toLowerCase().replace(/\.$/, "");
+  const mlle = first === "mlle" || first === "mademoiselle";
+  let bare = raw.replace(CIVILITY, "").trim();
+  if (/^(monsieur|madame|mademoiselle|m\.?|mr\.?|mme\.?|mlle\.?|couple|famille|les)$/i.test(bare)) bare = ""; // civilité seule
+  if (g.kind === "couple") {
+    if (/\s(et|&)\s/i.test(bare)) return `Chers ${bare.replace(/\s&\s/, " et ")},`; // « Marc et Nadia »
+    return bare ? `Chers Monsieur et Madame ${bare},` : "Chers Monsieur et Madame,";
+  }
+  if (g.kind === "mr") return TITLE.test(bare) ? `Cher ${bare},` : bare ? `Cher Monsieur ${bare},` : "Cher Monsieur,";
+  if (g.kind === "mme") {
+    const civ = mlle ? "Mademoiselle" : "Madame";
+    return TITLE.test(bare) ? `Chère ${bare},` : bare ? `Chère ${civ} ${bare},` : `Chère ${civ},`;
+  }
+  return `Bonjour ${raw},`;
+}
+
 // ---------------- téléphones ----------------
 export function normPhone(raw: unknown, prefix: string): { ok: boolean; value: string; why: string } {
   let s = String(raw ?? "").trim();

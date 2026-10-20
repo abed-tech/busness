@@ -20,3 +20,6 @@ export * as server from "@ceremonia/server";
 export { loadEvent } from "../../apps/web/lib/event";
 export { default as eventsPage } from "../../apps/web/app/(org)/events/page";
 export { default as presencePage } from "../../apps/web/app/(org)/events/[id]/presence/page";
+export { default as previewPage } from "../../apps/web/app/preview/[id]/[gid]/page";
+export * as tables from "../../apps/web/app/(org)/events/[id]/tables/actions";
+export { loadGuests } from "../../apps/web/lib/event";

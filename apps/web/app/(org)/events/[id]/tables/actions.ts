@@ -1,6 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
-import { checkMoves, tableCount, type Guest, type Plan } from "@ceremonia/core";
+import { checkMoves, planSeating, tableCount, type Guest, type Plan } from "@ceremonia/core";
 import { requireOrganizer, humanError } from "@/lib/auth";
 import { serverClient } from "@/lib/data/server";
 import { runAutoAssign } from "@/lib/guests";
@@ -10,7 +10,7 @@ async function ctx(eventId: string) {
   const sb = await serverClient();
   const [{ data: ev }, { data: guests }] = await Promise.all([
     sb.from("events").select("table_capacity, expected, extra_tables").eq("id", eventId).maybeSingle(),
-    sb.from("guests").select("id, name, kind, table_no, placed_manually").eq("event_id", eventId),
+    sb.from("guests").select("id, name, kind, table_no, placed_manually").eq("event_id", eventId).order("sort_order").order("created_at").order("id"), // ordre stable : l'aperçu et la confirmation donnent le même plan
   ]);
   return { sb, ev, guests: (guests || []) as Guest[] };
 }
@@ -32,6 +32,44 @@ export async function autoAssignAction(_: ActionState, fd: FormData): Promise<Ac
   const r = await runAutoAssign(id, fd.get("keep") === "on", fd.get("strategy") === "balance" ? "balance" : "fill");
   revalidatePath(`/events/${id}`, "layout");
   return r;
+}
+
+export type SeatingPreview = {
+  ok: boolean; message?: string;
+  plan?: Plan; placed?: number; kept?: number; mixedTables?: number; unknownKind?: number; problems?: string[]; cap?: number;
+  tables?: { n: number; used: number; mixed: boolean; guests: { id: string; name: string; couple: boolean; kept: boolean }[] }[];
+  unplaced?: { id: string; name: string; couple: boolean }[];
+};
+
+/** Aperçu du placement automatique : calculé sur les données réelles, rien n'est enregistré. */
+export async function previewSeating(eventId: string, keep: boolean): Promise<SeatingPreview> {
+  await requireOrganizer();
+  const { ev, guests } = await ctx(eventId);
+  if (!ev) return { ok: false, message: "Événement introuvable." };
+  if (!guests.length) return { ok: false, message: "Aucun invité à placer." };
+  const r = planSeating(ev, guests, { keep });
+  return {
+    ok: true, plan: r.plan, placed: r.placed, kept: r.kept, mixedTables: r.mixedTables, unknownKind: r.unknownKind, problems: r.problems, cap: ev.table_capacity,
+    tables: r.tables.map((t) => ({ n: t.n, used: t.used, mixed: t.mixed, guests: t.guests.map((g) => ({ id: g.id, name: g.name, couple: g.kind === "couple", kept: !(g.id in r.plan) })) })),
+    unplaced: r.unplaced.map((g) => ({ id: g.id, name: g.name, couple: g.kind === "couple" })),
+  };
+}
+
+/** Confirmation : recalcul sur les données du moment ; si elles ont changé depuis l'aperçu, rien n'est enregistré. */
+export async function confirmSeating(eventId: string, keep: boolean, shown: Plan): Promise<ActionState> {
+  await requireOrganizer();
+  const { sb, ev, guests } = await ctx(eventId);
+  if (!ev) return { ok: false, message: "Événement introuvable." };
+  const r = planSeating(ev, guests, { keep });
+  const same = Object.keys(r.plan).length === Object.keys(shown || {}).length && Object.entries(r.plan).every(([k, v]) => shown[k] === v);
+  if (!same) return { ok: false, message: "Les invités ou les tables ont changé depuis l’aperçu : recalculez la répartition avant de confirmer." };
+  const errs = checkMoves(ev, guests, r.plan);
+  if (errs.length) return { ok: false, message: errs.join(" ") };
+  if (!Object.keys(r.plan).length) return { ok: true, message: "Rien à modifier : tout le monde est déjà placé." };
+  const { error } = await sb.rpc("save_table_plan", { p_event: eventId, p_plan: r.plan, p_manual: false, p_label: `Placement automatique : ${r.placed} invitation(s) placée(s)${r.unplaced.length ? `, ${r.unplaced.length} sans place` : ""}` });
+  if (error) return { ok: false, message: humanError(error.message, error.code) };
+  revalidatePath(`/events/${eventId}`, "layout");
+  return { ok: true, message: `${r.placed} invitation(s) placée(s).${r.unplaced.length ? ` ${r.unplaced.length} restent sans place : voir « Sans table ».` : " Tout le monde a une place."}` };
 }
 
 export async function moveGuest(_: ActionState, fd: FormData): Promise<ActionState> {

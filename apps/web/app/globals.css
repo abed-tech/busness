@@ -208,6 +208,16 @@ dialog.dlg::backdrop { background: rgba(3, 6, 12, .7); }
 .sendbar { position: sticky; bottom: 0; z-index: 6; display: grid; gap: 6px; justify-items: stretch; margin-top: 6px; padding: 12px 0 calc(12px + env(safe-area-inset-bottom, 0px)); background: color-mix(in srgb, var(--bg) 94%, transparent); border-top: 1px solid var(--line); backdrop-filter: blur(10px); }
 .sendbar .hint { margin: 0; text-align: center; }
 
+/* placement des invités */
+.seats { display: flex; flex-wrap: wrap; gap: 6px; }
+.tcard .seats { flex-direction: column; align-items: stretch; }
+.seat { display: inline-block; padding: 2px 0; }
+.seat.pick { text-align: left; padding: 8px 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel); color: var(--fg); cursor: pointer; min-height: 40px; }
+.seat.pick:hover { border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
+.seat.pick[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--panel)); }
+button.addmode { font: inherit; text-align: left; cursor: pointer; }
+button.addmode[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+
 /* choix du mode d'ajout */
 .addmodes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .addmode { display: flex; flex-direction: column; gap: 12px; padding: 18px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); color: var(--fg); }
@@ -328,6 +338,7 @@ a.li:hover { border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
 .paper-in h2.cap { text-transform: capitalize; }
 .leaf-eyebrow { margin: 0; font-size: .66rem; letter-spacing: .32em; text-indent: .32em; text-transform: uppercase; color: var(--gold); }
 .leaf-script { margin: 0; font-family: var(--f-script); font-size: 2.6rem; font-size: clamp(2.2rem, 11cqw, 3rem); line-height: 1.1; color: var(--bdx); }
+.leaf-salut { margin: 0; font-family: var(--f-display); font-style: italic; font-size: 1.35rem; color: var(--brun); }
 .leaf-text { margin: 0; max-width: 34ch; line-height: 1.7; color: var(--brun); }
 .leaf-text b { font-weight: 500; }
 .leaf-text .venue { font-family: var(--f-display); font-size: 1.3rem; font-weight: 600; color: var(--bdx); }

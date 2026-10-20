@@ -42,7 +42,7 @@ export default async function EventHome({ params, searchParams }: { params: Prom
       <PageHeader eyebrow={`${TYPE_LABEL[ev.type]}${ev.billing === "free_admin" ? " · offert par Cérémonia" : ""}`} title={ev.title}
         sub={<>{date(ev.event_date)} à {ev.event_time.slice(0, 5)} · {ev.venue}</>}
         actions={<>
-          {guests[0] && <Link className="btn" href={`/events/${id}/preview/${guests[0].id}`}>Aperçu de l’invitation</Link>}
+          {guests[0] && <a className="btn" href={`/preview/${id}/${guests[0].id}`} target="_blank" rel="noopener">Aperçu de l’invitation ↗</a>}
           {write && <Link className="btn ghost" href={`/events/${id}/edit`}>Modifier</Link>}
         </>} />
       {sp.created && <Notice tone="ok">Événement créé. Prochaines étapes : vérifier les invités et les tables, puis régler et envoyer les invitations.</Notice>}

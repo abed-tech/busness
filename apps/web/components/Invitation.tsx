@@ -1,4 +1,5 @@
 import QRCode from "qrcode";
+import { salutation, type GuestKind } from "@ceremonia/core";
 import type { InvitationData } from "@/lib/invitation";
 import { photoUrl } from "@/lib/event";
 import { date, longDate, TYPES } from "@/lib/format";
@@ -47,7 +48,8 @@ export async function Invitation({ data, token, preview }: { data: InvitationDat
             <p className="leaf-eyebrow">{label}</p>
             <p className="leaf-script">{names}</p>
             <span className="rule" aria-hidden="true" />
-            <p className="leaf-text"><b>{g.name}</b>, {e.message || "vous êtes cordialement invité(e)."}</p>
+            <p className="leaf-salut">{salutation({ name: g.name, kind: (g.kind as GuestKind | null) || null })}</p>
+            <p className="leaf-text">{e.message || "Vous êtes cordialement invité(e)."}</p>
           </div>
         </>
       ),
@@ -113,7 +115,6 @@ export async function Invitation({ data, token, preview }: { data: InvitationDat
 
   return (
     <div className="inv">
-      {preview && <div className="notice inv-notice">Aperçu de l’organisateur : l’invité verra exactement cette page. Les réponses sont désactivées ici.</div>}
       <InvitationBook label={label} initials={initials} guest={g.name} pages={pages} />
     </div>
   );

@@ -175,6 +175,54 @@ test("Suivi de présence : entrées chargées avec le nom de l'invité", async (
   assert.ok(text.includes(GUESTS[1].name), "nom de l'invité entré affiché");
 });
 
+// Rendu complet (composants asynchrones compris) : tous les éléments, y compris ceux passés en propriétés (pages de l'invitation).
+async function render(node, out = []) {
+  if (node == null || typeof node !== "object") return out;
+  if (node instanceof Promise) return render(await node, out);
+  if (Array.isArray(node)) { for (const n of node) await render(n, out); return out; }
+  if (!("type" in node && "props" in node)) { for (const v of Object.values(node)) if (v && typeof v === "object") await render(v, out); return out; }
+  out.push(node);
+  if (typeof node.type === "function") await render(node.type(node.props), out);
+  for (const [k, v] of Object.entries(node.props || {})) if (k !== "dangerouslySetInnerHTML" && v && typeof v === "object") await render(v, out);
+  return out;
+}
+const texts = (tree) => tree.flatMap((n) => [n.props?.children].flat()).filter((c) => typeof c === "string");
+
+test("tables : aperçu du placement automatique puis confirmation enregistrée ; aperçu périmé refusé", async () => {
+  const p = await W.tables.previewSeating(EV, false);
+  assert.equal(p.ok, true, p.message);
+  assert.equal(p.unplaced.length, 0, "tout le monde a une place");
+  assert.equal(Object.keys(p.plan).length, GUESTS.length);
+  for (const t of p.tables) assert.ok(t.used <= p.cap, "capacité respectée");
+  const stale = { ...p.plan, [GUESTS[0].id]: p.plan[GUESTS[0].id] === 1 ? 2 : 1 };
+  const refused = await W.tables.confirmSeating(EV, false, stale);
+  assert.equal(refused.ok, false); assert.match(refused.message, /recalculez/);
+  const ok = await W.tables.confirmSeating(EV, false, p.plan);
+  assert.equal(ok.ok, true, ok.message);
+  const after = await W.loadGuests(EV);
+  for (const g of after) assert.equal(g.table_no || 0, p.plan[g.id], "affectation enregistrée telle que dans l'aperçu");
+  // placement manuel : couple déplacé comme une unité, capacité vérifiée
+  const couple = after.find((g) => g.kind === "couple");
+  const target = p.tables.find((t) => t.n !== couple.table_no && p.cap - t.used >= 2)?.n;
+  if (target) {
+    const fd = fdOf({ event_id: EV, guest_id: couple.id, table: String(target) });
+    assert.equal((await W.tables.moveGuest(null, fd)).ok, true);
+    assert.equal((await W.loadGuests(EV)).find((g) => g.id === couple.id).table_no, target, "conservé après rechargement");
+  }
+});
+
+test("aperçu : même composant que l'invitation, formule d'appel, aucun élément de l'espace de gestion", async () => {
+  const couple = GUESTS.find((g) => g.kind === "couple");
+  const tree = await render(W.previewPage({ params: Promise.resolve({ id: EV, gid: couple.id }) }));
+  const cls = tree.map((n) => n.props?.className || "").join(" ");
+  assert.match(cls, /\bbook\b/, "rendu de l'invitation");
+  assert.ok(!/apphead|navlist|drawer|evshell|inv-notice|org-main/.test(cls), "aucun élément de l'interface de gestion");
+  assert.ok(texts(tree).includes("Chers Monsieur et Madame Bola,"), "formule d'appel du couple");
+  const solo = GUESTS.find((g) => g.kind === "mr");
+  const t2 = texts(await render(W.previewPage({ params: Promise.resolve({ id: EV, gid: solo.id }) })));
+  assert.ok(t2.includes("Cher Monsieur Luc,"), "formule d'appel d'un homme seul");
+});
+
 test("suppression d'un événement : confirmation exigée, autre compte refusé, purge réelle, liste à jour", async () => {
   const ev = await W.loadEvent(EV);
   const token = GUESTS[0].invite_token;

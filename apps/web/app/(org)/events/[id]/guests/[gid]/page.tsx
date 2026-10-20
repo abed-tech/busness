@@ -28,7 +28,7 @@ export default async function GuestPage({ params }: { params: Promise<{ id: stri
   const write = canWrite(ev, me);
   return (
     <>
-      <PageHeader eyebrow="Fiche invité" title={g.name} actions={<><BackLink href={`/events/${id}/guests`}>Invités</BackLink><Link className="btn ghost sm" href={`/events/${id}/preview/${g.id}`}>Aperçu de son invitation</Link></>} />
+      <PageHeader eyebrow="Fiche invité" title={g.name} actions={<><BackLink href={`/events/${id}/guests`}>Invités</BackLink><a className="btn ghost sm" href={`/preview/${id}/${g.id}`} target="_blank" rel="noopener">Aperçu de son invitation ↗</a></>} />
       <div className="grid g2">
         <section className="card form">
           <h2>Informations</h2>
