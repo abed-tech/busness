@@ -111,7 +111,7 @@ export async function Invitation({ data, token, preview }: { data: InvitationDat
     ),
   });
   const last = pages[pages.length - 1];
-  last.node = <>{last.node}<p className="leaf-brand">Cérémonia</p></>;
+  last.node = <>{last.node}<p className="leaf-brand">Skyevenapp</p></>;
 
   return (
     <div className="inv">

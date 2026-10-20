@@ -3,16 +3,16 @@
 \set ON_ERROR_STOP 1
 set client_min_messages = notice;
 reset role; set role authenticated; select t_claims('00000000-0000-0000-0000-0000000000a1');
-insert into public.events (owner_id, title, event_date, venue, address, table_capacity, offer, photos)
-values ('00000000-0000-0000-0000-0000000000a1', 'Fête Deux', current_date + 20, 'Salle B', 'Rue B', 6, 'drinks', array['x/1.jpg']);
+insert into public.events (owner_id, title, event_date, venue, address, table_capacity, offer, photos, expected)
+values ('00000000-0000-0000-0000-0000000000a1', 'Fête Deux', current_date + 20, 'Salle B', 'Rue B', 6, 'drinks', array['x/1.jpg'], 1);
 insert into public.t_vars select 'f2', id::text from public.events where title = 'Fête Deux';
 insert into public.catalog_items (event_id, kind, name) select v::uuid, 'drink', 'Jus' from public.t_vars where k = 'f2';
 insert into public.guests (event_id, name, kind, whatsapp, table_no) select v::uuid, 'Couple Kabila', 'couple', '+243810000009', 1 from public.t_vars where k = 'f2';
 insert into public.guests (event_id, name, kind, table_no) select v::uuid, 'Mme Ngalula', 'mme', 1 from public.t_vars where k = 'f2';
 
 do $$ begin
-  begin insert into public.events (owner_id, title, event_date, venue, address, photos)
-    values ('00000000-0000-0000-0000-0000000000a1', 'Trop de photos', current_date, 'S', 'A', array['1','2','3','4','5']); raise exception 'ÉCHEC';
+  begin insert into public.events (owner_id, title, event_date, venue, address, photos, expected)
+    values ('00000000-0000-0000-0000-0000000000a1', 'Trop de photos', current_date, 'S', 'A', array['1','2','3','4','5'], 1); raise exception 'ÉCHEC';
   exception when check_violation then perform t_ok('4 photos au maximum'); end;
 end $$;
 

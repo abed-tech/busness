@@ -5,7 +5,7 @@ export function Logo() {
   return (
     <span className="brand">
       <svg viewBox="0 0 26 26" width="24" height="24" fill="none" stroke="#d3b270" strokeWidth="1.4" aria-hidden="true"><path d="M13 2l11 11-11 11L2 13z" /><path d="M13 7l6 6-6 6-6-6z" /></svg>
-      <b>Cérémonia</b>
+      <b>Skyevenapp</b>
     </span>
   );
 }

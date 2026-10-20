@@ -3,7 +3,7 @@ import { requireOrganizer, humanError } from "@/lib/auth";
 import { serverClient } from "@/lib/data/server";
 import { PageHeader, Empty, Notice } from "@/components/ui";
 import { date, TYPE_LABEL, plur } from "@/lib/format";
-import { photoUrl } from "@/lib/event";
+import { photoUrl, draftResume } from "@/lib/event";
 import { ConfirmAction } from "@/components/ConfirmAction";
 import { deleteEvent } from "./actions";
 
@@ -18,7 +18,9 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
   const { data, error } = await sb.from("events").select("id, title, type, event_date, venue, status, billing, owner_id, organizer_id, photos").neq("status", "deleted").order("event_date", { ascending: true });
   if (error) console.error("Mes événements : chargement impossible", error);
   // la base filtre déjà (RLS) ; on ne garde en plus que les événements de ce compte, même si une permission globale élargissait la lecture
-  const rows = ((data || []) as Row[]).filter((r) => r.owner_id === me.id || r.organizer_id === me.id);
+  const mine = ((data || []) as Row[]).filter((r) => r.owner_id === me.id || r.organizer_id === me.id);
+  // un brouillon (création non payée) n'est pas un événement : il est listé à part, pour reprendre la création
+  const rows = mine.filter((r) => r.status !== "draft"), drafts = mine.filter((r) => r.status === "draft" && r.owner_id === me.id);
   const counts = new Map<string, number>();
   let countError = false;
   if (rows.length) {
@@ -29,7 +31,22 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
   const today = new Date().toISOString().slice(0, 10);
   const upcoming = rows.filter((r) => r.event_date >= today), past = rows.filter((r) => r.event_date < today);
   // suppression : propriétaire seulement, événement et compte actifs (la base revérifie dans delete_my_event)
-  const canDelete = (e: Row) => e.owner_id === me.id && e.status === "active" && me.status === "active";
+  const canDelete = (e: Row) => e.owner_id === me.id && (e.status === "active" || e.status === "draft") && me.status === "active";
+  const Draft = ({ e }: { e: Row }) => (
+    <div className="li evrow draft">
+      <Link className="evlink" href={draftResume(e)}>
+        <span className="evthumb" aria-hidden="true">{e.photos?.[0] ? <img src={photoUrl(e.photos[0])} alt="" loading="lazy" /> : <i>{(e.title.trim()[0] || "·").toUpperCase()}</i>}</span>
+        <span style={{ flex: 1, minWidth: 0 }}><b>{e.title}</b><small>{TYPE_LABEL[e.type]} · {date(e.event_date)} · {e.photos?.length ? "aperçu prêt, paiement à finaliser" : "photos à ajouter"}</small></span>
+        <span className="badge warn">Non payé</span>
+        <span aria-hidden="true">›</span>
+      </Link>
+      {canDelete(e) && (
+        <ConfirmAction action={deleteEvent} danger label="Abandonner" title={`Abandonner « ${e.title} » ?`}
+          body="Ce brouillon n’a pas été payé : il n’est pas encore un événement. Ses informations, ses invités et ses photos seront effacés. Aucun paiement n’a été effectué."
+          needText={e.title} confirmLabel="Abandonner le brouillon" hidden={{ event_id: e.id }} />
+      )}
+    </div>
+  );
   const Item = ({ e }: { e: Row }) => (
     <div className="li evrow">
       <Link className="evlink" href={`/events/${e.id}`}>
@@ -51,6 +68,13 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
       {sp.pw && <Notice tone="ok">Mot de passe modifié.</Notice>}
       {sp.deleted && <Notice tone="ok">Événement supprimé.</Notice>}
       {countError && <Notice tone="bad">Le nombre d’invitations n’a pas pu être chargé. Les événements ci-dessous sont à jour.</Notice>}
+      {!error && !!drafts.length && (
+        <section style={{ marginBottom: 22 }}>
+          <h2 style={{ fontSize: "1.3rem", marginBottom: 4 }}>Créations à finaliser</h2>
+          <p className="hint" style={{ marginBottom: 10 }}>Pas encore payées : elles ne sont pas des événements actifs. Reprenez là où vous vous êtes arrêté, vos informations sont conservées.</p>
+          <div className="list">{drafts.map((e) => <Draft key={e.id} e={e} />)}</div>
+        </section>
+      )}
       {error ? (
         <div className="error-box" role="alert">
           <b>Vos événements n’ont pas pu être chargés.</b> {humanError(error.message, error.code)}

@@ -1,4 +1,4 @@
-# Cérémonia — code source complet
+# Skyevenapp — code source complet
 
 Plateforme d’invitations et d’accueil des invités : espace organisateur, invitation personnelle de chaque invité,
 contrôleurs (entrées) et serveurs (boissons et plats) le jour J, suivis en direct, paiement, et espace administrateur

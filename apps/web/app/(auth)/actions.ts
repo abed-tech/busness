@@ -51,8 +51,8 @@ export async function signup(_: FormState, fd: FormData): Promise<FormState> {
   const token = await auth.createOneTimeToken(r.userId, "confirm", 60 * 24);
   const link = `${origin()}/auth/callback?type=confirm&token=${token}`;
   await sendMail({
-    to: p.data.email, subject: "Confirmez votre adresse — Cérémonia",
-    text: `Bonjour ${p.data.username},\n\nPour activer votre compte Cérémonia, ouvrez ce lien (valable 24 heures) :\n${link}\n\nSi vous n’êtes pas à l’origine de cette inscription, ignorez ce message.`,
+    to: p.data.email, subject: "Confirmez votre adresse — Skyevenapp",
+    text: `Bonjour ${p.data.username},\n\nPour activer votre compte Skyevenapp, ouvrez ce lien (valable 24 heures) :\n${link}\n\nSi vous n’êtes pas à l’origine de cette inscription, ignorez ce message.`,
   });
   return { ok: true, message: "Compte créé. Ouvrez le lien de confirmation envoyé à votre adresse e-mail pour terminer." };
 }
@@ -61,13 +61,13 @@ export async function forgot(_: FormState, fd: FormData): Promise<FormState> {
   const email = String(fd.get("email") || "").trim();
   if (!z.string().email().safeParse(email).success) return { message: "E-mail invalide." };
   if (!mailConfigured() && process.env.NODE_ENV === "production") {
-    return { message: "La réinitialisation par e-mail n’est pas encore disponible. Contactez l’équipe Cérémonia." };
+    return { message: "La réinitialisation par e-mail n’est pas encore disponible. Contactez l’équipe Skyevenapp." };
   }
   const uid = await auth.userIdByEmail(email);
   if (uid) {
     const token = await auth.createOneTimeToken(uid, "recovery", 60);
     await sendMail({
-      to: email, subject: "Réinitialisation du mot de passe — Cérémonia",
+      to: email, subject: "Réinitialisation du mot de passe — Skyevenapp",
       text: `Bonjour,\n\nPour choisir un nouveau mot de passe, ouvrez ce lien (valable 1 heure) :\n${origin()}/reset?token=${token}\n\nSi vous n’avez rien demandé, ignorez ce message : votre mot de passe reste inchangé.`,
     });
   }

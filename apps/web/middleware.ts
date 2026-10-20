@@ -23,7 +23,10 @@ export function middleware(req: NextRequest) {
     u.searchParams.set("next", path);
     return NextResponse.redirect(u);
   }
-  return NextResponse.next();
+  // chemin demandé, lu par la mise en page d'un événement (un brouillon non payé n'ouvre que ses étapes de création)
+  const headers = new Headers(req.headers);
+  headers.set("x-skyevenapp-path", path); // remplace toute valeur envoyée par le navigateur
+  return NextResponse.next({ request: { headers } });
 }
 
 export const config = { matcher: ["/((?!_next/static|_next/image|favicon.ico|robots.txt|api/).*)"] };

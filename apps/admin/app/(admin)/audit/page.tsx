@@ -11,6 +11,8 @@ const ACTION_LABEL: Record<string, string> = {
   "organizer.reactivate": "Réactivation d’organisateur", "payment.succeeded": "Paiement confirmé", "payment.failed": "Paiement échoué", "payment.refunded": "Remboursement",
   "payment.amount_mismatch": "Montant de paiement incohérent", "report.export": "Export", "report.close_month": "Clôture mensuelle", "admin.role": "Rôle administrateur", "settings.update": "Paramètre modifié", "event.table_plan": "Plan de table", "staff.create": "Accès personnel créé", "staff.login": "Connexion du personnel",
   "auth.admin_login": "Connexion à l’administration",
+  "event.delete_owner": "Suppression par l’organisateur", "event.draft_purge": "Brouillon abandonné effacé",
+  "payment.simulated_succeeded": "Paiement simulé réussi", "payment.simulated_failed": "Paiement simulé échoué", "payment.simulated_cancelled": "Paiement simulé annulé",
 };
 const roleLabel = (r: string) => ROLE_LABEL[r as AdminRole] || ({ system: "Système", organizer: "Organisateur" } as Record<string, string>)[r] || r;
 

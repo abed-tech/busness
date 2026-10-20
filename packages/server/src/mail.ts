@@ -1,6 +1,6 @@
 /**
  * Envoi d'e-mails (confirmation d'inscription, mot de passe oublié) par l'API HTTP de Resend.
- * Variables : RESEND_API_KEY et MAIL_FROM (ex. « Cérémonia <no-reply@votre-domaine> »).
+ * Variables : RESEND_API_KEY et MAIL_FROM (ex. « Skyevenapp <no-reply@votre-domaine> »).
  * Sans configuration : en local, le lien s'affiche dans le terminal ; en production, aucun e-mail n'est envoyé
  * et les fonctions qui en dépendent l'indiquent honnêtement à l'utilisateur.
  */

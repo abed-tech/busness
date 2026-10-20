@@ -46,7 +46,7 @@ export function AppHeader({ variant, title, back, right, menuLabel, menu }: {
     <>
       <header className="apphead">
         <div className="apphead-l">{variant === "home" ? menuBtn : back ? <Link className="iconbtn" href={back} aria-label="Retour"><Icon name="back" /></Link> : null}</div>
-        <Link className="apphead-brand" href="/events" aria-label="Cérémonia, mes événements"><Logo /></Link>
+        <Link className="apphead-brand" href="/events" aria-label="Skyevenapp, mes événements"><Logo /></Link>
         <div className="apphead-r">{variant === "home" ? right : menuBtn}</div>
         <p className="apphead-t">{title}</p>
       </header>

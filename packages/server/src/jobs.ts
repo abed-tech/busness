@@ -5,7 +5,7 @@ import { cleanupAuth } from "./auth";
  * Tâches planifiées (remplacent pg_cron) : exécutées par le serveur au démarrage puis toutes les heures.
  * Toutes sont rejouables sans effet (idempotentes) ; un verrou empêche deux services de les lancer en même temps.
  * - clôture du mois écoulé (rapports figés), - règle de conservation (si activée par l'admin),
- * - sessions expirées du personnel et des comptes.
+ * - brouillons de création jamais payés et inactifs depuis 30 jours, - sessions expirées du personnel et des comptes.
  */
 const LOCK = 742001; // identifiant arbitraire du verrou consultatif
 
@@ -22,6 +22,7 @@ export async function runScheduledJobs(): Promise<{ ran: boolean; errors: string
       // une seule fois par mois (la fonction journalise chaque appel)
       await step("clôture mensuelle", "select public.close_month() where not exists (select 1 from public.monthly_reports where month = date_trunc('month', now() - interval '1 month')::date)");
       await step("conservation", "select public.purge_expired_events()");
+      await step("brouillons abandonnés", "select public.purge_stale_drafts(30)");
       await step("sessions du personnel", "delete from public.staff_sessions where expires_at < now()");
       try { await cleanupAuth(); } catch (e) { errors.push(`sessions : ${(e as Error).message}`); }
     } finally {

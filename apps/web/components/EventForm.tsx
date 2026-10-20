@@ -1,14 +1,18 @@
 "use client";
-import { useActionState, useMemo, useRef, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { parseGuests, tableCount, priceCents, KIND_LABEL } from "@ceremonia/core";
 import { readGuestFile } from "@/lib/client/readGuestFile";
 import { TYPES, titleOf, money } from "@/lib/format";
+import { GUEST_COUNT } from "@/lib/schemas";
 import type { ActionState } from "@/components/ConfirmAction";
 
 type Initial = Partial<Record<"type" | "host_a" | "host_b" | "title" | "event_date" | "event_time" | "venue" | "address" | "dress" | "message" | "program" | "offer" | "phone_prefix", string>> & { expected?: number; table_capacity?: number };
 
-/** Écrans de la création ; le 8ᵉ (photos) suit l'enregistrement, car une photo a besoin de l'événement. */
-export const CREATE_STEPS = ["L’événement", "Le lieu", "Les tables", "Boissons et buffet", "Message et programme", "Les invités", "Récapitulatif", "Vos photos"];
+/**
+ * Écrans de la création ; le 8ᵉ (photos) suit l'enregistrement du brouillon, car une photo a besoin de l'événement.
+ * Le 9ᵉ (aperçu de l'invitation) précède le paiement : l'événement n'est créé définitivement qu'après le paiement.
+ */
+export const CREATE_STEPS = ["L’événement", "Le lieu", "Les tables", "Boissons et buffet", "Message et programme", "Les invités", "Récapitulatif", "Vos photos", "Aperçu"];
 const OFFER_LABEL: Record<string, string> = { both: "Une boisson et un plat par personne", drinks: "Une boisson par personne", food: "Un plat par personne", none: "Rien à choisir" };
 
 /** Indicateur « Étape x sur 8 », partagé avec l'écran des photos. */
@@ -23,9 +27,15 @@ export function StepHeader({ step }: { step: number }) {
   );
 }
 
-/** Formulaire d'événement : création écran par écran (avec listes et invités) ou modification sur une page. */
-export function EventForm({ action, initial, eventId, unit }: { action: (p: ActionState, fd: FormData) => Promise<ActionState>; initial?: Initial; eventId?: string; unit?: { cents: number; persons: number; currency: string } }) {
-  const creating = !eventId;
+/** Listes déjà saisies d'un brouillon (retour aux étapes depuis l'aperçu, avant le paiement). */
+export type DraftLists = { drinks: string; dishes: string; guests: string };
+
+/**
+ * Formulaire d'événement : création écran par écran (avec listes et invités) ou modification sur une page.
+ * Un brouillon non payé (draft) se modifie avec les mêmes écrans que la création, déjà remplis.
+ */
+export function EventForm({ action, initial, eventId, unit, draft }: { action: (p: ActionState, fd: FormData) => Promise<ActionState>; initial?: Initial; eventId?: string; unit?: { cents: number; persons: number; currency: string }; draft?: DraftLists }) {
+  const creating = !eventId || !!draft;
   const [state, run, pending] = useActionState<ActionState, FormData>(action, null);
   const [type, setType] = useState(initial?.type || "mariage");
   const T = TYPES[type];
@@ -35,18 +45,23 @@ export function EventForm({ action, initial, eventId, unit }: { action: (p: Acti
   const [titleEdited, setTitleEdited] = useState(!!initial?.title);
   const [message, setMessage] = useState(initial?.message ?? T.msg);
   const [program, setProgram] = useState(initial?.program ?? T.prog);
-  const [textEdited, setTextEdited] = useState(!creating);
+  const [textEdited, setTextEdited] = useState(!!eventId);
   const [cap, setCap] = useState(initial?.table_capacity ?? T.cap);
   const [expected, setExpected] = useState(initial?.expected ?? 0);
   const [prefix, setPrefix] = useState(initial?.phone_prefix || "+243");
   const [offer, setOffer] = useState(initial?.offer || "both");
-  const [guests, setGuests] = useState("");
+  const [guests, setGuests] = useState(draft?.guests || "");
   const [fileErr, setFileErr] = useState("");
   const parsed = useMemo(() => (guests.trim() ? parseGuests(guests, prefix) : null), [guests, prefix]);
   const persons = parsed ? parsed.rows.reduce((s, r) => s + (r.kind === "couple" ? 2 : 1), 0) : 0;
   const tc = cap > 0 ? tableCount({ table_capacity: cap, expected, extra_tables: 0 }, parsed ? parsed.rows.map((r) => ({ kind: r.kind || null })) : []) : 0;
   const shownTitle = titleEdited ? title : titleOf(type, a, b);
   const formRef = useRef<HTMLFormElement>(null);
+  const expRef = useRef<HTMLInputElement>(null);
+  // nombre d'invités obligatoire (il sert au prix) : message explicite, revérifié par le serveur et la base
+  useEffect(() => {
+    expRef.current?.setCustomValidity(!Number.isInteger(expected) || expected < 1 ? GUEST_COUNT : expected > 10000 ? "Nombre d’invités : 10 000 au maximum." : "");
+  }, [expected]);
   const [step, setStep] = useState(0);
   const [snap, setSnap] = useState<Record<string, string>>({});
   const LAST = 6; // récapitulatif : dernier écran avant l'enregistrement
@@ -76,7 +91,7 @@ export function EventForm({ action, initial, eventId, unit }: { action: (p: Acti
   function pickType(t: string) {
     setType(t);
     if (!textEdited) { setMessage(TYPES[t].msg); setProgram(TYPES[t].prog); }
-    if (creating) setCap(TYPES[t].cap);
+    if (!eventId) setCap(TYPES[t].cap);
   }
 
   return (
@@ -113,7 +128,7 @@ export function EventForm({ action, initial, eventId, unit }: { action: (p: Acti
         <h2>Les tables</h2>
         <div className="grid g3">
           <div className="fld"><label htmlFor="table_capacity">Places par table</label><input id="table_capacity" name="table_capacity" type="number" inputMode="numeric" min={1} max={100} value={cap} onChange={(e) => setCap(Number(e.target.value))} required /></div>
-          <div className="fld"><label htmlFor="expected">Personnes attendues (facultatif)</label><input id="expected" name="expected" type="number" inputMode="numeric" min={0} max={10000} value={expected} onChange={(e) => setExpected(Number(e.target.value))} /></div>
+          <div className="fld"><label htmlFor="expected">Nombre d’invités</label><input ref={expRef} id="expected" name="expected" type="number" inputMode="numeric" min={1} max={10000} step={1} required value={expected || ""} placeholder="Ex. 150" onChange={(e) => setExpected(Number(e.target.value))} /></div>
           <div className="fld"><label htmlFor="phone_prefix">Indicatif WhatsApp par défaut</label><input id="phone_prefix" name="phone_prefix" value={prefix} onChange={(e) => setPrefix(e.target.value)} maxLength={5} required /></div>
         </div>
         <p className="hint">{cap > 0 ? `${tc} table(s) de ${cap} places. Un couple occupe toujours 2 places à la même table.` : "Indiquez le nombre de places par table."}</p>
@@ -128,8 +143,8 @@ export function EventForm({ action, initial, eventId, unit }: { action: (p: Acti
         </div>
         {creating ? (
           <div className="grid g2">
-            {(offer === "both" || offer === "drinks") && <div className="fld"><label htmlFor="drinks">Boissons proposées (une par ligne)</label><textarea id="drinks" name="drinks" placeholder={"Coca-Cola\nFanta\nPrimus\nEau minérale"} /></div>}
-            {(offer === "both" || offer === "food") && <div className="fld"><label htmlFor="dishes">Plats proposés (un par ligne)</label><textarea id="dishes" name="dishes" placeholder={"Poulet braisé\nPoisson\nPlat végétarien"} /></div>}
+            {(offer === "both" || offer === "drinks") && <div className="fld"><label htmlFor="drinks">Boissons proposées (une par ligne)</label><textarea id="drinks" name="drinks" defaultValue={draft?.drinks} placeholder={"Coca-Cola\nFanta\nPrimus\nEau minérale"} /></div>}
+            {(offer === "both" || offer === "food") && <div className="fld"><label htmlFor="dishes">Plats proposés (un par ligne)</label><textarea id="dishes" name="dishes" defaultValue={draft?.dishes} placeholder={"Poulet braisé\nPoisson\nPlat végétarien"} /></div>}
           </div>
         ) : <p className="hint">Les listes se modifient dans les rubriques Boissons et Buffet.</p>}
       </section>
@@ -143,7 +158,7 @@ export function EventForm({ action, initial, eventId, unit }: { action: (p: Acti
       {creating && (
         <section className="card form" data-step={5} hidden={!shown(5)}>
           <h2>Les invités (facultatif)</h2>
-          <p className="hint">Une invitation par ligne : Nom ; Statut ; WhatsApp. Collez une liste ou importez un fichier Excel (.xlsx) ou CSV. Vous pourrez aussi les ajouter plus tard.</p>
+          <p className="hint">Une invitation par ligne : Nom ; Statut ; WhatsApp. Collez une liste ou importez un fichier Excel (.xlsx) ou CSV. Vous pourrez aussi les ajouter plus tard.{draft && " Cette liste remplace celle déjà enregistrée dans votre brouillon."}</p>
           <div className="fld"><label htmlFor="guests">Liste</label><textarea id="guests" name="guests" value={guests} onChange={(e) => setGuests(e.target.value)} style={{ minHeight: 150 }} placeholder={"Mr Luc Mbuyi ; Monsieur ; 081 000 0001\nCouple Bola ; Couple ; +243 81 000 0002\nMme Lucie ; Madame"} /></div>
           <div className="row">
             <label className="btn ghost sm" style={{ position: "relative" }}>Importer un fichier
@@ -160,7 +175,7 @@ export function EventForm({ action, initial, eventId, unit }: { action: (p: Acti
             </div>
           )}
           <label className="check"><input type="checkbox" name="auto" defaultChecked /> Placer automatiquement les invités à table</label>
-          {unit && <p className="hint">Tarif : {money(unit.cents, unit.currency)} par tranche de {unit.persons} personnes. Estimation actuelle : <b>{money(priceCents(Math.max(persons, expected), unit.cents, unit.persons), unit.currency)}</b>. Le règlement se fait depuis l’accueil de l’événement, avant l’envoi des invitations.</p>}
+          {unit && <p className="hint">Tarif : {money(unit.cents, unit.currency)} par tranche de {unit.persons} personnes. Estimation actuelle : <b>{money(priceCents(Math.max(persons, expected), unit.cents, unit.persons), unit.currency)}</b>. Le règlement se fait après l’aperçu de l’invitation : l’événement est créé une fois le paiement confirmé.</p>}
         </section>
       )}
 
@@ -171,11 +186,12 @@ export function EventForm({ action, initial, eventId, unit }: { action: (p: Acti
             <dt>Titre</dt><dd>{snap.title || shownTitle || "—"}</dd>
             <dt>Date et heure</dt><dd>{snap.event_date ? new Date(snap.event_date + "T00:00:00").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : "—"} à {snap.event_time || "—"}</dd>
             <dt>Lieu</dt><dd>{[snap.venue, snap.address].filter(Boolean).join(", ") || "—"}</dd>
+            <dt>Nombre d’invités</dt><dd>{expected || "—"}</dd>
             <dt>Tables</dt><dd>{tc} table(s) de {cap} places</dd>
             <dt>Choix des invités</dt><dd>{OFFER_LABEL[offer]}</dd>
             <dt>Invités</dt><dd>{parsed ? `${parsed.rows.length} invitation(s) · ${persons} personne(s)` : "Aucun pour l’instant"}</dd>
           </dl>
-          <p className="hint">Après l’enregistrement, dernier écran : ajoutez au moins une photo, elle sert de fond à l’invitation.</p>
+          <p className="hint">Après l’enregistrement : ajoutez au moins une photo (elle sert de fond à l’invitation), puis vérifiez l’aperçu de l’invitation avant le paiement.</p>
         </section>
       )}
 
@@ -185,7 +201,7 @@ export function EventForm({ action, initial, eventId, unit }: { action: (p: Acti
           {step > 0 ? <button className="btn ghost" type="button" onClick={() => goTo(step - 1)} disabled={pending}>Précédent</button> : <span />}
           {step < LAST
             ? <button className="btn" type="submit" key="next">Suivant</button>
-            : <button className="btn" type="submit" key="save" disabled={pending}>{pending ? "Enregistrement…" : "Créer l’événement"}</button>}
+            : <button className="btn" type="submit" key="save" disabled={pending}>{pending ? "Enregistrement…" : "Enregistrer et continuer"}</button>}
         </div>
       ) : (
         <div className="row"><button className="btn" type="submit" disabled={pending}>{pending ? "Enregistrement…" : "Enregistrer les modifications"}</button></div>

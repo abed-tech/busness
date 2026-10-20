@@ -11,7 +11,10 @@ import type { ActionState } from "@/components/ConfirmAction";
 
 const fail = (message: string): ActionState => ({ ok: false, message });
 
-/** Création : l'événement, ses listes de boissons et de plats, puis les invités éventuels. */
+/**
+ * Création : l'événement, ses listes de boissons et de plats, puis les invités éventuels.
+ * La base l'enregistre en brouillon (status « draft ») : il ne devient actif qu'après le paiement confirmé.
+ */
 export async function createEvent(_: ActionState, fd: FormData): Promise<ActionState> {
   const me = await requireOrganizer();
   if (me.status !== "active") return fail("Compte suspendu : création impossible.");
@@ -38,6 +41,50 @@ export async function createEvent(_: ActionState, fd: FormData): Promise<ActionS
   }
   revalidatePath("/events");
   redirect(`/events/${ev.id}/photos?new=1`); // 8ᵉ écran : photos (au moins une)
+}
+
+/**
+ * Retour aux étapes depuis l'aperçu (brouillon non payé) : mêmes champs que la création.
+ * Les listes et les invités saisis remplacent ceux du brouillon (aucune invitation n'a encore pu être ouverte).
+ */
+export async function updateDraft(_: ActionState, fd: FormData): Promise<ActionState> {
+  const me = await requireOrganizer();
+  if (me.status !== "active") return fail("Compte suspendu : modification impossible.");
+  const id = String(fd.get("event_id"));
+  if (!/^[0-9a-f-]{36}$/.test(id)) return fail("Événement introuvable.");
+  const p = EventSchema.safeParse(Object.fromEntries(fd));
+  if (!p.success) return fail(p.error.issues[0]?.message || "Formulaire invalide.");
+  const sb = await serverClient();
+  const { data: ev } = await sb.from("events").select("id, status, owner_id").eq("id", id).maybeSingle();
+  if (!ev || ev.owner_id !== me.id) return fail("Événement introuvable.");
+  if (ev.status !== "draft") redirect(`/events/${id}/edit`);
+  const text = String(fd.get("guests") || "");
+  const g = text.trim() ? parseGuests(text, p.data.phone_prefix) : null;
+  if (g && g.rows.length > 1500) return fail("1 500 invitations au maximum par importation.");
+  // invités retirés d'abord : un changement de places par table ne peut pas buter sur l'ancien placement
+  const { error: e0 } = await sb.from("guests").delete().eq("event_id", id);
+  if (e0) return fail(humanError(e0.message, e0.code));
+  const { error, count } = await sb.from("events").update(p.data, { count: "exact" }).eq("id", id);
+  if (error) return fail(humanError(error.message, error.code));
+  if (!count) return fail("Modification refusée : vous ne gérez pas cet événement.");
+  const { error: e1 } = await sb.from("catalog_items").delete().eq("event_id", id);
+  if (e1) return fail(humanError(e1.message, e1.code));
+  const items = [
+    ...(p.data.offer === "both" || p.data.offer === "drinks" ? lines(fd.get("drinks")).map((name) => ({ event_id: id, kind: "drink", name })) : []),
+    ...(p.data.offer === "both" || p.data.offer === "food" ? lines(fd.get("dishes")).map((name) => ({ event_id: id, kind: "dish", name })) : []),
+  ];
+  if (items.length) {
+    const { error: e2 } = await sb.from("catalog_items").insert(items);
+    if (e2) return fail(`Les listes n’ont pas pu être enregistrées : ${humanError(e2.message, e2.code)}`);
+  }
+  if (g?.rows.length) {
+    const ins = await insertGuests(id, g.rows.map((r) => ({ name: r.name, kind: r.kind || null, whatsapp: r.whatsapp })));
+    if (!ins.ok) return fail(`Les invités n’ont pas pu être enregistrés : ${ins.message}`);
+    if (fd.get("auto") === "on") await runAutoAssign(id, false, "fill");
+  }
+  revalidatePath("/events");
+  revalidatePath(`/events/${id}`, "layout");
+  redirect(`/events/${id}/photos?new=1`);
 }
 
 export async function updateEvent(_: ActionState, fd: FormData): Promise<ActionState> {

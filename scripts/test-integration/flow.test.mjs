@@ -39,15 +39,23 @@ test("connexion : mauvais mot de passe refusé, bon mot de passe accepté", asyn
   assert.equal(r.url, "/events"); assert.ok(W.stubs.jar.get("cer-org"));
 });
 
-test("événement : création (avec boissons et invités placés automatiquement) → écran photos", async () => {
-  const r = await redirected(W.events.createEvent(null, fdOf({
+test("événement : création (avec boissons et invités placés automatiquement) → écran photos, en brouillon non payé", async () => {
+  const form = {
     type: "mariage", host_a: "Marc", host_b: "Nadia", title: "Marc & Nadia " + u, event_date: "2027-06-12", event_time: "17:00",
-    venue: "Salle Le Palmier", address: "Gombe", dress: "", message: "Bienvenue", program: "17:00 | Accueil", expected: "0", table_capacity: "4",
+    venue: "Salle Le Palmier", address: "Gombe", dress: "", message: "Bienvenue", program: "17:00 | Accueil", expected: "4", table_capacity: "4",
     phone_prefix: "+243", offer: "drinks", drinks: "Coca\nEau", guests: "Mr Luc ; Monsieur ; 0810000001\nCouple Bola ; Couple ; +243810000002\nMme Lucie ; Madame ; 0810000003", auto: "on",
-  })));
+  };
+  // nombre d'invités obligatoire : manquant, nul, négatif ou non entier refusé par le serveur
+  for (const expected of ["", "0", "-2", "2.5", "abc"]) {
+    const bad = await W.events.createEvent(null, fdOf({ ...form, expected }));
+    assert.equal(bad?.ok, false, `nombre d'invités « ${expected} » accepté`); assert.match(bad.message, /nombre d’invités/i);
+  }
+  const r = await redirected(W.events.createEvent(null, fdOf(form)));
   assert.match(r.url, /^\/events\/[0-9a-f-]{36}\/photos\?new=1$/, JSON.stringify(r));
   EV = r.url.split("/")[2];
   const ev = await W.loadEvent(EV); assert.equal(ev.title, "Marc & Nadia " + u); assert.deepEqual(ev.photos, []);
+  assert.equal(ev.status, "draft", "l'événement n'est pas créé définitivement avant le paiement");
+  assert.equal(ev.expected, 4);
   const sb = await (await import("node:module")).createRequire(import.meta.url)("./.web.cjs").server.dataClient({ role: "authenticated", claims: { sub: ev.owner_id } });
   const g = await sb.from("guests").select("id, name, kind, table_no, invite_token, code").eq("event_id", EV).order("sort_order");
   assert.equal(g.data.length, 3); assert.ok(g.data.every((x) => x.table_no), "tous placés à table");
@@ -68,7 +76,51 @@ test("photos : envoi d'un vrai JPEG, lecture publique, dernière photo protégé
   assert.match(last.message, /Gardez au moins une photo/);
 });
 
+test("aperçu : vraie invitation sans interface de gestion, barre « Générer mon invitation »", async () => {
+  const tree = await render(W.eventPreviewPage({ params: Promise.resolve({ id: EV }) }));
+  const cls = tree.map((n) => n.props?.className || "").join(" ");
+  assert.match(cls, /\bbook\b/, "rendu du composant de l'invitation");
+  assert.match(cls, /\bpv-bar\b/, "barre fixe présente pour un brouillon");
+  assert.ok(!/apphead|navlist|drawer|evshell|org-main/.test(cls), "aucun élément de l'interface de gestion");
+  const t = texts(tree);
+  assert.ok(t.includes("Bienvenue"), "message saisi"); assert.ok(t.includes("Salle Le Palmier"), "lieu saisi");
+  assert.ok(t.includes("Cher Monsieur Luc,"), "personnalisé avec le premier invité saisi");
+  const ev = await W.loadEvent(EV);
+  assert.ok(tree.some((n) => n.type === "img" && n.props?.src?.includes(ev.photos[0].split("/")[1])), "photo envoyée affichée");
+  assert.equal((await W.loadEvent(EV)).status, "draft", "l'aperçu ne crée rien");
+});
+
+test("paiement simulé : récapitulatif, échec, annulation, réussite unique → événement créé", async () => {
+  const start = async () => new URL((await redirected(W.pay.startSimulatedPayment(null, fdOf({ event_id: EV })))).url, "http://x").searchParams.get("ref");
+  const ref1 = await start(); assert.match(ref1, /^CRM-/);
+  assert.equal(await start(), ref1, "double clic : même paiement en attente");
+  const tx = await S.asOwner((q) => q.query("select amount_cents, persons, status, provider from public.transactions where reference = $1", [ref1]));
+  assert.deepEqual(tx.rows[0], { amount_cents: 500, persons: 4, status: "pending", provider: "simulation" }, "montant calculé par la base");
+  assert.equal((await W.loadEvent(EV)).status, "draft", "« Générer mon invitation » ne crée pas l'événement");
+  const page = texts(await render(W.simulatePage({ params: Promise.resolve({ id: EV }), searchParams: Promise.resolve({ ref: ref1 }) })));
+  assert.ok(page.includes("Paiement en attente") && page.some((s) => /Simulation/.test(s)), "état et mention de simulation affichés");
+  const done = (ref, outcome) => redirected(W.pay.completeSimulatedPayment(null, fdOf({ event_id: EV, ref, outcome })));
+  await done(ref1, "failed");
+  assert.equal((await W.loadEvent(EV)).status, "draft", "échec : aucun événement actif");
+  const ref2 = await start(); assert.notEqual(ref2, ref1, "nouvel essai possible");
+  await done(ref2, "cancelled");
+  assert.equal((await W.loadEvent(EV)).status, "draft", "annulation : aucun événement actif");
+  assert.ok(!(await eventsOnPage()).some((e) => e.id === EV), "non payé : absent des événements");
+  assert.ok((await draftsOnPage()).some((e) => e.id === EV), "non payé : listé dans « Créations à finaliser »");
+  const ref3 = await start();
+  const ok = await done(ref3, "succeeded"); assert.match(ok.url, /\/pay\/simulate\?ref=/);
+  await done(ref3, "succeeded"); // rejeu (double clic, actualisation)
+  const ev = await W.loadEvent(EV); assert.equal(ev.status, "active", "paiement réussi : événement créé");
+  const n = await S.asOwner((q) => q.query("select count(*) filter (where status = 'succeeded')::int as ok, (select count(*) from public.events where title = $2)::int as evs from public.transactions where event_id = $1", [EV, ev.title]));
+  assert.deepEqual(n.rows[0], { ok: 1, evs: 1 }, "un seul paiement réussi, un seul événement");
+  assert.ok((await eventsOnPage()).some((e) => e.id === EV), "payé : affiché dans « Mes événements »");
+  assert.ok((await S.dataClient(S.ANON).rpc("get_invitation", { p_token: GUESTS[0].invite_token })).data, "lien d'invitation actif");
+});
+
 test("paiement : envoi bloqué avant règlement, webhook Stripe signé, envoi accepté", async () => {
+  // invités supplémentaires après la création : le complément se règle par prestataire (webhook signé)
+  const up = await W.events.updateSettings(null, fdOf({ event_id: EV, table_capacity: "4", expected: "60", phone_prefix: "+243" }));
+  assert.equal(up.ok, true, up.message);
   const before = await W.send.markSent(EV, [GUESTS[0].id]); assert.equal(before.ok, false); assert.match(before.message, /Réglez/);
   const p = await redirected(W.pay.startPayment(null, fdOf({ event_id: EV, method: "card" })));
   const ref = new URL(p.url, "http://x").searchParams.get("ref"); assert.match(ref, /^CRM-/);
@@ -135,11 +187,14 @@ function collect(node, out = []) {
   collect(node.props?.children, out);
   return out;
 }
-const eventsOnPage = async () => {
+// « Mes événements » : les événements (Item) ; les créations non payées sont dans une rubrique à part (Draft)
+const eventsTree = async () => {
   const tree = collect(await W.eventsPage({ searchParams: Promise.resolve({}) }));
   assert.ok(!tree.some((n) => n.props?.className === "error-box"), "aucune erreur de chargement affichée");
-  return tree.filter((n) => n.props?.e?.id).map((n) => n.props.e);
+  return tree;
 };
+const eventsOnPage = async () => (await eventsTree()).filter((n) => n.props?.e?.id && n.type?.name !== "Draft").map((n) => n.props.e);
+const draftsOnPage = async () => (await eventsTree()).filter((n) => n.props?.e?.id && n.type?.name === "Draft").map((n) => n.props.e);
 
 test("Mes événements : les événements réels du compte sont chargés et affichés", async () => {
   const list = await eventsOnPage();

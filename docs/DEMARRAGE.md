@@ -1,4 +1,4 @@
-# Démarrer Cérémonia sur votre ordinateur
+# Démarrer Skyevenapp sur votre ordinateur
 
 Ce guide lance **toute la plateforme en local** : la base de données PostgreSQL (Docker), l’espace organisateur
 (avec les invitations, les contrôleurs et les serveurs) et l’espace administrateur.
@@ -56,6 +56,11 @@ Vous pouvez aussi créer votre propre compte organisateur depuis http://localhos
 
 ## 4. Parcours de test complet
 
+0. **Création d’un événement** (« + Nouvel événement ») : les écrans de création (le nombre d’invités est obligatoire : il fixe
+   le prix), puis les photos, puis l’**aperçu** de l’invitation, identique à celle que recevront les invités. Le bouton fixe
+   « **Générer mon invitation** » ouvre le **paiement simulé** (aucun paiement réel) : récapitulatif du prix, puis
+   « Confirmer le paiement simulé », « Simuler un échec » ou « Annuler le paiement ». L’événement n’est créé qu’en cas de
+   réussite ; sinon il reste dans « Créations à finaliser » et peut être repris sans tout ressaisir.
 1. **Organisateur** : connectez-vous, ouvrez « Patrick & Grâce ».
 2. **Invités** : ajoutez un invité, collez une liste, importez un fichier Excel ou CSV (colonnes Nom ; Statut ; WhatsApp).
 3. **Tables** : « Placer les invités » (les couples restent ensemble, aucune table n’est dépassée), déplacez ou échangez des invités.
@@ -77,7 +82,8 @@ Vous pouvez aussi créer votre propre compte organisateur depuis http://localhos
 11. **Serveur** : même principe, puis « Boisson servie » / « Plat servi ».
 12. **Suivis** : « Suivi de présence », « Suivi boissons », « Suivi plats », « Service » se mettent à jour tout seuls.
 13. **Administrateur** : tableau de bord, événements (création gratuite, pour la plateforme ou pour un organisateur),
-    organisateurs (suspendre / réactiver), finances (le paiement de l’étape 7 apparaît), rapports, journal, paramètres.
+    organisateurs (suspendre / réactiver), finances (le paiement de l’étape 7 apparaît), rapports, journal, paramètres,
+    « Événements supprimés » (nom, nombre d’invités et montant conservés après chaque suppression).
 
 ### Scanner avec un téléphone
 

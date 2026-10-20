@@ -10,11 +10,11 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   return (
     <main className="auth">
       <div className="card">
-        <p className="eyebrow">Cérémonia</p>
+        <p className="eyebrow">Skyevenapp</p>
         <h1 style={{ fontSize: "2rem", margin: "6px 0 18px" }}>Administration</h1>
         {e && MSG[e] && <div className="notice" role="status" style={{ marginBottom: 14 }}>{MSG[e]}</div>}
         <LoginForm />
-        <p className="hint" style={{ marginTop: 16 }}>Accès réservé à l’équipe Cérémonia. Un second facteur (application d’authentification) est exigé.</p>
+        <p className="hint" style={{ marginTop: 16 }}>Accès réservé à l’équipe Skyevenapp. Un second facteur (application d’authentification) est exigé.</p>
       </div>
     </main>
   );

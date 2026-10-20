@@ -6,7 +6,7 @@ import type { Organizer } from "./auth";
 
 export interface EventRow {
   id: string; short_id: string; owner_id: string | null; organizer_id: string | null; organizer_can_manage: boolean;
-  origin: string; billing: "paid" | "free_admin"; status: "active" | "suspended" | "deleted"; status_reason: string | null;
+  origin: string; billing: "paid" | "free_admin"; status: "active" | "suspended" | "deleted" | "draft"; status_reason: string | null;
   type: string; host_a: string; host_b: string; title: string; event_date: string; event_time: string;
   venue: string; address: string; dress: string; message: string; program: string;
   expected: number; table_capacity: number; extra_tables: number; phone_prefix: string; offer: "both" | "drinks" | "food" | "none";
@@ -38,10 +38,13 @@ export async function loadCatalog(eventId: string): Promise<CatalogItem[]> {
   return (data || []) as CatalogItem[];
 }
 
-/** Indication d'interface seulement : la base revérifie chaque écriture. */
+/** Indication d'interface seulement : la base revérifie chaque écriture. Un brouillon (non payé) reste modifiable par son créateur. */
 export function canWrite(ev: EventRow, me: Organizer): boolean {
-  return ev.status === "active" && me.status === "active" && (ev.owner_id === me.id || (ev.organizer_id === me.id && ev.organizer_can_manage));
+  return (ev.status === "active" || ev.status === "draft") && me.status === "active" && (ev.owner_id === me.id || (ev.organizer_id === me.id && ev.organizer_can_manage));
 }
+
+/** Où reprendre un brouillon non payé : les photos si aucune n'a été ajoutée, sinon l'aperçu de l'invitation. */
+export const draftResume = (ev: Pick<EventRow, "id" | "photos">) => (ev.photos.length ? `/preview/${ev.id}` : `/events/${ev.id}/photos?new=1`);
 
 export const evShape = (ev: EventRow) => ({ table_capacity: ev.table_capacity, expected: ev.expected, extra_tables: ev.extra_tables });
 

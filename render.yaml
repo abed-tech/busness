@@ -42,7 +42,7 @@ services:
         sync: false
       - key: RESEND_API_KEY         # facultatif : e-mails de confirmation et de mot de passe oublié
         sync: false
-      - key: MAIL_FROM              # ex. Cérémonia <no-reply@votre-domaine>
+      - key: MAIL_FROM              # ex. Skyevenapp <no-reply@votre-domaine>
         sync: false
       - key: STRIPE_SECRET_KEY      # facultatif : vide = carte désactivée
         sync: false

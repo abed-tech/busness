@@ -32,7 +32,7 @@ export async function verifyStripe(rawBody: string, header: string | null, secre
   return v1.some((v) => safeEqual(v, expected));
 }
 
-/** Statut Cérémonia déduit d'un événement Stripe (null : événement ignoré). */
+/** Statut Skyevenapp déduit d'un événement Stripe (null : événement ignoré). */
 export function stripeOutcome(ev: { type: string; data: { object: Record<string, any> } }):
   null | { reference: string; status: "succeeded" | "failed" | "refunded"; providerRef: string; amountCents: number | null } {
   const o = ev.data.object || {};
@@ -67,7 +67,7 @@ export async function verifyCinetpayToken(fields: Record<string, string>, token:
   return safeEqual(token, await hmacHex(secret, data));
 }
 
-/** Statut Cérémonia déduit de la réponse de /v2/payment/check. */
+/** Statut Skyevenapp déduit de la réponse de /v2/payment/check. */
 export function cinetpayOutcome(check: { code?: string; data?: { status?: string; amount?: string | number; currency?: string; operator_id?: string; payment_method?: string } }):
   null | { status: "succeeded" | "failed"; amountMinor: number | null; currency: string | null; providerRef: string | null } {
   const st = check?.data?.status;
@@ -77,7 +77,7 @@ export function cinetpayOutcome(check: { code?: string; data?: { status?: string
   return null; // en attente : rien à faire
 }
 
-/** CinetPay exprime les montants en unités de la devise ; Cérémonia stocke des centièmes. */
+/** CinetPay exprime les montants en unités de la devise ; Skyevenapp stocke des centièmes. */
 export function toCents(amount: number): number {
   return Math.round(amount * 100);
 }

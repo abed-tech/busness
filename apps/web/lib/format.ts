@@ -8,7 +8,7 @@ export const hm = (d: string | null | undefined) => (d ? new Intl.DateTimeFormat
 export const plur = (n: number, one: string, many?: string) => `${n} ${n > 1 ? many || one + "s" : one}`;
 export const TYPE_LABEL: Record<string, string> = { mariage: "Mariage", fiancailles: "Fiançailles", anniversaire: "Anniversaire", bapteme: "Baptême", gala: "Gala", conference: "Conférence" };
 export const OFFER_LABEL: Record<string, string> = { both: "Boissons et buffet", drinks: "Boissons seulement", food: "Buffet seulement", none: "Ni boissons ni buffet" };
-export const TX_LABEL: Record<string, string> = { pending: "En attente", succeeded: "Réussi", failed: "Échoué", refunded: "Remboursé" };
+export const TX_LABEL: Record<string, string> = { pending: "En attente", succeeded: "Réussi", failed: "Échoué", refunded: "Remboursé", cancelled: "Annulé" };
 export const offersDrinks = (o: string) => o === "both" || o === "drinks";
 export const offersFood = (o: string) => o === "both" || o === "food";
 

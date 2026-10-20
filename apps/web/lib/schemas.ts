@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export const GUEST_COUNT = "Indiquez le nombre d’invités (un nombre entier, au moins 1) : il sert à calculer le prix.";
+
 export const EventSchema = z.object({
   type: z.enum(["mariage", "fiancailles", "anniversaire", "bapteme", "gala", "conference"]),
   host_a: z.string().trim().max(80).default(""),
@@ -12,7 +14,8 @@ export const EventSchema = z.object({
   dress: z.string().trim().max(160).default(""),
   message: z.string().max(2000).default(""),
   program: z.string().max(3000).default(""),
-  expected: z.coerce.number().int().min(0).max(10000).default(0),
+  // nombre d'invités obligatoire : il sert à calculer le prix (revérifié par la base)
+  expected: z.coerce.number({ invalid_type_error: GUEST_COUNT }).int("Le nombre d’invités doit être un nombre entier.").min(1, GUEST_COUNT).max(10000, "Nombre d’invités : 10 000 au maximum."),
   table_capacity: z.coerce.number().int().min(1, "Places par table : 1 minimum.").max(100),
   offer: z.enum(["both", "drinks", "food", "none"]),
   phone_prefix: z.string().regex(/^\+\d{1,4}$/, "Indicatif invalide (ex. +243).").default("+243"),

@@ -28,8 +28,8 @@ grant execute on function public.t_claims(text, text) to anon, authenticated, se
 
 -- ================= 1. Isolation entre organisateurs =================
 set role authenticated; select t_claims('00000000-0000-0000-0000-0000000000a1');
-insert into public.events (owner_id, title, event_date, venue, address, table_capacity, offer)
-values ('00000000-0000-0000-0000-0000000000a1', 'Mariage Un', current_date + 30, 'Salle A', 'Rue A', 4, 'both');
+insert into public.events (owner_id, title, event_date, venue, address, table_capacity, offer, expected)
+values ('00000000-0000-0000-0000-0000000000a1', 'Mariage Un', current_date + 30, 'Salle A', 'Rue A', 4, 'both', 1);
 insert into public.t_vars select 'e1', id::text from public.events where title = 'Mariage Un';
 insert into public.catalog_items (event_id, kind, name) select v::uuid, 'drink', 'Coca' from t_vars where k = 'e1';
 insert into public.catalog_items (event_id, kind, name) select v::uuid, 'drink', 'Nkoyi' from t_vars where k = 'e1';

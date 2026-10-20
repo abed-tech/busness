@@ -2,7 +2,7 @@ import { kOverview } from "./actions";
 import { StaffApp } from "./StaffApp";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Accès du personnel · Cérémonia", robots: { index: false, follow: false } };
+export const metadata = { title: "Accès du personnel · Skyevenapp", robots: { index: false, follow: false } };
 
 export default async function StaffPage({ params }: { params: Promise<{ short: string; staff: string }> }) {
   const { short, staff } = await params;

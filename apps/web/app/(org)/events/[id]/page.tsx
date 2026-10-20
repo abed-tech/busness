@@ -1,7 +1,8 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { loads, readiness, tableCount } from "@ceremonia/core";
 import { requireOrganizer, rpc, origin } from "@/lib/auth";
-import { loadEvent, loadGuests, loadCatalog, canWrite, evShape } from "@/lib/event";
+import { loadEvent, loadGuests, loadCatalog, canWrite, evShape, draftResume } from "@/lib/event";
 import { serverClient } from "@/lib/data/server";
 import { paymentMethods } from "@/lib/payments";
 import { PageHeader, Stat, Notice } from "@/components/ui";
@@ -20,6 +21,7 @@ export default async function EventHome({ params, searchParams }: { params: Prom
   const { id } = await params;
   const sp = await searchParams;
   const ev = await loadEvent(id);
+  if (ev.status === "draft") redirect(draftResume(ev)); // non payé : la création n'est pas terminée
   const [guests, catalog, bill, stats] = await Promise.all([loadGuests(id), loadCatalog(id), rpc<Billing>("event_billing", { p_event: id }), rpc<Stats>("event_stats", { p_event: id })]);
   const sb = await serverClient();
   const [{ data: logs }, { data: txs }] = await Promise.all([
@@ -39,13 +41,21 @@ export default async function EventHome({ params, searchParams }: { params: Prom
 
   return (
     <>
-      <PageHeader eyebrow={`${TYPE_LABEL[ev.type]}${ev.billing === "free_admin" ? " · offert par Cérémonia" : ""}`} title={ev.title}
+      <PageHeader eyebrow={`${TYPE_LABEL[ev.type]}${ev.billing === "free_admin" ? " · offert par Skyevenapp" : ""}`} title={ev.title}
         sub={<>{date(ev.event_date)} à {ev.event_time.slice(0, 5)} · {ev.venue}</>}
         actions={<>
           {guests[0] && <a className="btn" href={`/preview/${id}/${guests[0].id}`} target="_blank" rel="noopener">Aperçu de l’invitation ↗</a>}
           {write && <Link className="btn ghost" href={`/events/${id}/edit`}>Modifier</Link>}
         </>} />
-      {sp.created && <Notice tone="ok">Événement créé. Prochaines étapes : vérifier les invités et les tables, puis régler et envoyer les invitations.</Notice>}
+      {sp.created && (
+        <Notice tone="ok">
+          <b>Paiement confirmé : votre événement est créé.</b> L’invitation est générée et ses liens de partage sont actifs ; toutes les fonctions de gestion sont ouvertes.
+          <span className="row" style={{ marginTop: 10 }}>
+            <Link className="btn sm" href={`/events/${id}/send`}>Partager les invitations</Link>
+            <Link className="btn ghost sm" href={`/events/${id}/guests`}>Gérer les invités</Link>
+          </span>
+        </Notice>
+      )}
       {sp.updated && <Notice tone="ok">Modifications enregistrées.</Notice>}
       {sp.pay === "cancel" && <Notice>Paiement annulé : rien n’a été débité.</Notice>}
 
@@ -61,7 +71,7 @@ export default async function EventHome({ params, searchParams }: { params: Prom
       <div className="grid g2" style={{ marginBottom: 16 }}>
         <section className="card form">
           <h2>Règlement</h2>
-          {!b ? <p className="hint">Indisponible pour le moment.</p> : b.free ? <p>Événement offert par Cérémonia : aucun règlement n’est demandé.</p> : (
+          {!b ? <p className="hint">Indisponible pour le moment.</p> : b.free ? <p>Événement offert par Skyevenapp : aucun règlement n’est demandé.</p> : (
             <>
               <dl className="kv">
                 <dt>Personnes facturées</dt><dd>{b.persons} <span className="hint">(le plus grand entre invités et personnes attendues)</span></dd>
@@ -89,11 +99,11 @@ export default async function EventHome({ params, searchParams }: { params: Prom
             <ActionForm action={updateSettings} hidden={{ event_id: id }} submit="Enregistrer">
               <div className="grid g3">
                 <div className="fld"><label htmlFor="s-cap">Places par table</label><input id="s-cap" name="table_capacity" type="number" min={1} max={100} defaultValue={ev.table_capacity} required /></div>
-                <div className="fld"><label htmlFor="s-exp">Personnes attendues</label><input id="s-exp" name="expected" type="number" min={0} max={10000} defaultValue={ev.expected} /></div>
+                <div className="fld"><label htmlFor="s-exp">Nombre d’invités</label><input id="s-exp" name="expected" type="number" min={1} max={10000} step={1} defaultValue={ev.expected || ""} required /></div>
                 <div className="fld"><label htmlFor="s-cc">Indicatif</label><input id="s-cc" name="phone_prefix" defaultValue={ev.phone_prefix} maxLength={5} required /></div>
               </div>
             </ActionForm>
-          ) : <p className="hint">{ev.table_capacity} places par table · {ev.expected} personnes attendues.</p>}
+          ) : <p className="hint">{ev.table_capacity} places par table · {ev.expected} invité(s).</p>}
         </section>
       </div>
 

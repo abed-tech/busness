@@ -1,4 +1,4 @@
-# Architecture technique — Cérémonia (tout sur Render)
+# Architecture technique — Skyevenapp (tout sur Render)
 
 ## 1. Vue d'ensemble
 
@@ -66,7 +66,28 @@ Inchangé : les 8 migrations métier existantes (tables, RLS, fonctions, journal
 
 Un compte organisateur ne peut jamais devenir administrateur, et inversement (tests SQL et test de parcours).
 
-## 5. Communications et sécurité
+## 5. Création d'un événement : aperçu, paiement, puis création définitive
+
+```
+étapes de création (inchangées) → brouillon (events.status = 'draft') → photos → aperçu (/preview/<id>)
+→ « Générer mon invitation » → paiement simulé (/events/<id>/pay/simulate) → paiement réussi → status = 'active'
+```
+
+- Un événement inséré par un organisateur est **toujours** un brouillon (déclencheur `events_organizer_draft`), quoi que le
+  navigateur envoie ; le nombre d'invités (`expected ≥ 1`) est exigé par la base (`events_require_guest_count`).
+- Un brouillon n'est jamais actif : invitations fermées, aucun accès du jour J, absent de « Mes événements » (rubrique
+  « Créations à finaliser ») et des listes d'administration (filtre « Brouillons non payés »).
+- `start_simulated_checkout` calcule le montant avec la tarification existante et reprend le paiement en attente (pas de
+  doublon) ; `complete_simulated_payment` vérifie le propriétaire, l'état et le montant recalculé, verrouille la ligne et
+  est rejouable sans effet. Toute transaction qui passe à « réussie » active le brouillon (`transactions_activate_draft`),
+  y compris un futur paiement réel confirmé par webhook. Le paiement simulé se désactive par le paramètre
+  `payment_simulation` (table `settings`).
+- Brouillons abandonnés : effacés après 30 jours sans activité (tâche planifiée `purge_stale_drafts`).
+- Suppression d'un événement (organisateur, administration, règle de conservation) : `private.purge_event` inscrit d'abord
+  dans `event_history` le nom, le nombre d'invités et le montant réglé, une seule fois par événement ; consultable dans
+  l'administration (« Événements supprimés », permission `reports.read`, montants avec `finance.read`).
+
+## 6. Communications et sécurité
 
 - Navigateur ↔ Next.js : HTTPS (certificat Render), cookies httpOnly + Secure, CSP stricte (`connect-src 'self'`), HSTS, `X-Frame-Options: DENY`.
 - Next.js ↔ PostgreSQL : réseau privé Render (URL interne) ; base fermée à Internet (`ipAllowList: []`).

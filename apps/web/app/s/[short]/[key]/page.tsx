@@ -4,7 +4,7 @@ import { AutoRefresh } from "@/components/AutoRefresh";
 import { Logo } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Service · Cérémonia", robots: { index: false, follow: false } };
+export const metadata = { title: "Service · Skyevenapp", robots: { index: false, follow: false } };
 
 /** Page du personnel de service : accès par lien secret, quantités par table uniquement. */
 export default async function ServiceLink({ params }: { params: Promise<{ short: string; key: string }> }) {

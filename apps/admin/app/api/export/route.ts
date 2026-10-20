@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
   const rows = (data.rows || []) as Record<string, unknown>[];
   const cols = rows.length ? Object.keys(rows[0]) : [];
   const csv = "﻿" + [cols.join(";"), ...rows.map((r) => cols.map((c) => cell(r[c])).join(";"))].join("\r\n");
-  const name = `ceremonia-${kind}-${month || new Date().toISOString().slice(0, 7)}.csv`;
+  const name = `skyevenapp-${kind}-${month || new Date().toISOString().slice(0, 7)}.csv`;
   return new NextResponse(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",

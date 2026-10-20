@@ -19,7 +19,7 @@ export async function stripeCheckout(o: { reference: string; amountCents: number
     "line_items[0][quantity]": "1",
     "line_items[0][price_data][currency]": o.currency.toLowerCase(),
     "line_items[0][price_data][unit_amount]": String(o.amountCents),
-    "line_items[0][price_data][product_data][name]": `Cérémonia · ${o.title}`.slice(0, 120),
+    "line_items[0][price_data][product_data][name]": `Skyevenapp · ${o.title}`.slice(0, 120),
     success_url: o.successUrl,
     cancel_url: o.cancelUrl,
   });
@@ -43,7 +43,7 @@ export async function cinetpayCheckout(o: { reference: string; amountCents: numb
       transaction_id: o.reference,
       amount: Math.round(o.amountCents / 100),
       currency: o.currency,
-      description: `Ceremonia ${o.reference}`,
+      description: `Skyevenapp ${o.reference}`,
       channels: "MOBILE_MONEY",
       notify_url: `${(process.env.ORGANIZER_ORIGIN || "").replace(/\/$/, "")}/api/webhooks/cinetpay`,
       return_url: o.returnUrl,

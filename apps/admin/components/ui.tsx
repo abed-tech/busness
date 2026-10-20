@@ -10,10 +10,29 @@ export function PageHeader({ eyebrow, title, sub, actions }: { eyebrow?: string;
     </div>
   );
 }
-export function Stat({ label, value, sub }: { label: string; value: ReactNode; sub?: ReactNode }) {
-  return <div className="card stat"><b>{value}</b><span>{label}</span>{sub && <small>{sub}</small>}</div>;
+const STAT_ICON: Record<string, string> = {
+  events: "M7 2v2H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2V2h-2v2H9V2zm-2 8h14v9H5z",
+  users: "M16 11a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm-8 2c-2.7 0-8 1.3-8 4v3h16v-3c0-2.7-5.3-4-8-4z",
+  money: "M4 6h16v12H4zm2 2v8h12V8zm6 1a3 3 0 1 1 0 6 3 3 0 0 1 0-6z",
+  clock: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 5v5.4l4 2.4-.8 1.3L11 13V7z",
+  archive: "M3 3h18v4H3zm1 5h16v13H4zm5 3v2h6v-2z",
+  draft: "M3 17.2V21h3.8l11-11-3.8-3.8zM20.7 7a1 1 0 0 0 0-1.4l-2.3-2.3a1 1 0 0 0-1.4 0l-1.8 1.8 3.8 3.8z",
+};
+/** Carte statistique ; l'icône facultative ne porte jamais seule l'information (le libellé est toujours écrit). */
+export function Stat({ label, value, sub, icon }: { label: string; value: ReactNode; sub?: ReactNode; icon?: keyof typeof STAT_ICON }) {
+  return (
+    <div className="card stat">
+      {icon && <span className="stat-ic" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d={STAT_ICON[icon]} /></svg></span>}
+      <span>{label}</span><b>{value}</b>{sub && <small>{sub}</small>}
+    </div>
+  );
 }
-const TONE: Record<string, string> = { active: "ok", succeeded: "ok", success: "ok", pending: "warn", suspended: "warn", failed: "bad", denied: "bad", error: "bad", deleted: "bad", refunded: "info" };
+/** En-tête de colonne triable (tri appliqué par la base, l'adresse garde les filtres). */
+export function SortTh({ label, k, cur, href, className }: { label: string; k: string; cur: string; href: (sort: string) => string; className?: string }) {
+  const on = cur === k;
+  return <th className={className} aria-sort={on ? "other" : undefined}><Link className={"sort" + (on ? " on" : "")} href={href(k)}>{label}<span aria-hidden="true">{on ? " ▾" : " ↕"}</span></Link></th>;
+}
+const TONE: Record<string, string> = { active: "ok", succeeded: "ok", success: "ok", pending: "warn", suspended: "warn", draft: "warn", failed: "bad", denied: "bad", error: "bad", deleted: "bad", refunded: "info", cancelled: "" };
 export function StatusBadge({ s }: { s: string }) {
   return <span className={"badge " + (TONE[s] || "")}>{STATUS_LABEL[s] || s}</span>;
 }

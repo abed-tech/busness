@@ -2,8 +2,8 @@
 \set ON_ERROR_STOP 1
 set client_min_messages = notice;
 reset role; set role authenticated; select t_claims('00000000-0000-0000-0000-0000000000a1');
-insert into public.events (owner_id, title, event_date, venue, address, table_capacity, offer)
-values ('00000000-0000-0000-0000-0000000000a1', 'Photos Base', current_date + 40, 'Salle P', 'Rue P', 6, 'none');
+insert into public.events (owner_id, title, event_date, venue, address, table_capacity, offer, expected)
+values ('00000000-0000-0000-0000-0000000000a1', 'Photos Base', current_date + 40, 'Salle P', 'Rue P', 6, 'none', 1);
 insert into public.t_vars select 'ph', id::text from public.events where title = 'Photos Base';
 
 do $$ declare e uuid := (select v::uuid from public.t_vars where k = 'ph'); p text; begin

@@ -15,7 +15,7 @@ export default async function Onboarding() {
       <div className="card form">
         <Logo />
         <h1 style={{ fontSize: "1.9rem" }}>Votre profil</h1>
-        <p className="hint">Ces informations restent privées ; elles permettent à l’équipe Cérémonia de vous contacter si besoin.</p>
+        <p className="hint">Ces informations restent privées ; elles permettent à l’équipe Skyevenapp de vous contacter si besoin.</p>
         <OnboardingForm username={meta.username || ""} phone={meta.phone || ""} />
       </div>
     </div>

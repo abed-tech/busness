@@ -1,7 +1,7 @@
 import "./globals.css";
 import type { ReactNode } from "react";
 
-export const metadata = { title: "Cérémonia · Administration", robots: { index: false, follow: false } };
+export const metadata = { title: "Skyevenapp · Administration", robots: { index: false, follow: false } };
 export const viewport = { width: "device-width", initialScale: 1, themeColor: "#070b14" };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

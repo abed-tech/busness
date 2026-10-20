@@ -5,7 +5,7 @@ import { serverClient } from "@/lib/data/server";
 import { Invitation } from "@/components/Invitation";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Aperçu de l’invitation · Cérémonia", robots: { index: false, follow: false } };
+export const metadata = { title: "Aperçu de l’invitation · Skyevenapp", robots: { index: false, follow: false } };
 // mêmes réglages d'affichage que la page de l'invité (/i/[token])
 export const viewport = { width: "device-width", initialScale: 1, themeColor: "#F5EFE5", viewportFit: "cover" };
 

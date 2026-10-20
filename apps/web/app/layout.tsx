@@ -1,7 +1,7 @@
 import "./globals.css";
 import type { ReactNode } from "react";
 
-export const metadata = { title: "Cérémonia", description: "Invitations et accueil des invités pour vos événements." };
+export const metadata = { title: "Skyevenapp", description: "Invitations et accueil des invités pour vos événements." };
 export const viewport = { width: "device-width", initialScale: 1, themeColor: "#070b14" };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

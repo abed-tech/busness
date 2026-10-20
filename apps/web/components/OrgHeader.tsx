@@ -22,7 +22,7 @@ export function OrgHeader({ active, logout }: { active: boolean; logout: () => P
   return (
     <AppHeader
       variant={home ? "home" : "page"}
-      title={PAGES[path] || "Cérémonia"}
+      title={PAGES[path] || "Skyevenapp"}
       back="/events"
       menuLabel="Menu principal"
       menu={menu}

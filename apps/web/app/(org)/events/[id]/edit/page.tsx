@@ -10,6 +10,7 @@ export default async function EditEvent({ params }: { params: Promise<{ id: stri
   const me = await requireOrganizer();
   const { id } = await params;
   const ev = await loadEvent(id);
+  if (ev.status === "draft") redirect(`/events/${id}/draft`); // brouillon non payé : mêmes écrans que la création
   if (!canWrite(ev, me)) redirect(`/events/${id}`);
   return (
     <>

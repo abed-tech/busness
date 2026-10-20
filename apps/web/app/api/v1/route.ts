@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export function GET(req: Request) {
   if (!hostAllowed(req)) return new Response("Not found", { status: 404 });
   return json({
-    name: "Cérémonia API",
+    name: "Skyevenapp API",
     version: "1",
     auth: "POST /api/v1/auth/login → token ; puis « Authorization: Bearer <token> »",
     endpoints: [

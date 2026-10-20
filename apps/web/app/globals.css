@@ -1,4 +1,4 @@
-/* Cérémonia — espace administrateur : thème sombre, laiton, typographie lisible */
+/* Skyevenapp — espace organisateur et invitations : thème sombre, laiton, typographie lisible */
 :root {
   --bg: #070b14;
   --panel: #0d1424;
@@ -405,3 +405,42 @@ a.li:hover { border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
   .evbody { padding: 18px 0 90px; }
   .big3 b { font-size: 1.8rem; }
 }
+
+/* =================== aperçu de la création : barre fixe « Générer mon invitation » =================== */
+/* La page réserve la hauteur de la barre : l'invitation (et ses flèches) n'est jamais masquée. */
+.pv { --pv-bar: 78px; --pv-safe: env(safe-area-inset-bottom, 0px); }
+.pv .inv { padding-bottom: calc(var(--pv-bar) + var(--pv-safe) + 24px); }
+.pv .book { height: min(900px, calc(100vh - 48px - var(--pv-bar))); height: min(900px, calc(100svh - 48px - var(--pv-bar) - var(--pv-safe))); }
+@media (max-width: 520px) {
+  .pv .inv { padding-bottom: calc(var(--pv-bar) + var(--pv-safe)); }
+  .pv .book { height: calc(100vh - var(--pv-bar)); height: calc(100svh - var(--pv-bar) - var(--pv-safe)); min-height: 480px; }
+}
+.pv-bar { position: fixed; z-index: 80; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(12px + var(--pv-safe, 0px));
+  background: color-mix(in srgb, var(--bg) 90%, transparent); border-top: 1px solid var(--line); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 -12px 40px rgba(3, 6, 12, .35); font-family: var(--f-body); color: var(--fg); }
+.pv-bar-in { display: flex; align-items: center; gap: 10px; max-width: 560px; margin: 0 auto; }
+.pv-cta { flex: 1; min-height: 54px; border: 0; border-radius: 14px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  background: linear-gradient(135deg, #e6c98c, var(--accent) 55%, #b8944f); color: var(--accent-fg); font-size: 1.02rem; font-weight: 600; letter-spacing: .01em;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--accent) 35%, transparent); transition: transform .15s ease, box-shadow .15s ease, opacity .15s ease; }
+.pv-cta:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 12px 30px color-mix(in srgb, var(--accent) 45%, transparent); }
+.pv-cta:disabled { opacity: .75; cursor: progress; }
+.pv-edit { flex: none; min-height: 54px; padding: 0 18px; display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 14px; color: var(--fg); font-size: .95rem; }
+.pv-edit:hover { border-color: var(--accent); color: var(--accent); }
+.pv-err { max-width: 560px; margin: 0 auto 10px; padding: 10px 12px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--bad) 50%, var(--line)); background: color-mix(in srgb, var(--bad) 12%, var(--panel)); color: var(--fg); font-size: .9rem; }
+.pv:has(.pv-err) { --pv-bar: 140px; }
+.spin { width: 18px; height: 18px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .8s linear infinite; flex: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation-duration: 2.4s; } .pv-cta { transition: none; } }
+
+/* =================== paiement simulé =================== */
+.pay-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 16px; max-width: 980px; align-items: start; }
+.pay-card h2 { margin: 0; }
+.pay-total { font-family: var(--f-display); font-size: 1.9rem; line-height: 1; color: var(--accent); font-variant-numeric: tabular-nums; }
+.pay-main { width: 100%; min-height: 52px; font-size: 1rem; }
+.pay-alt .btn { flex: 1; }
+.sim-flag { margin: 0; padding: 10px 12px; border-radius: 10px; border: 1px dashed color-mix(in srgb, var(--info) 55%, var(--line)); background: color-mix(in srgb, var(--info) 8%, transparent); font-size: .88rem; }
+.sim-flag b { color: var(--info); letter-spacing: .08em; text-transform: uppercase; font-size: .78rem; }
+@media (max-width: 760px) { .pay-grid { grid-template-columns: 1fr; } }
+
+/* brouillons dans « Mes événements » */
+.evrow.draft { border-style: dashed; }

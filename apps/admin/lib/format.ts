@@ -5,10 +5,11 @@ export const dateTime = (d: string | null | undefined) =>
   d ? new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(d)) : "—";
 export const month = (d: string) => new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" }).format(new Date(d + "T00:00:00"));
 export const STATUS_LABEL: Record<string, string> = {
-  active: "Actif", suspended: "Suspendu", deleted: "Supprimé",
-  pending: "En attente", succeeded: "Réussie", failed: "Échouée", refunded: "Remboursée",
+  active: "Actif", suspended: "Suspendu", deleted: "Supprimé", draft: "Brouillon non payé",
+  pending: "En attente", succeeded: "Réussie", failed: "Échouée", refunded: "Remboursée", cancelled: "Annulée",
   success: "Réussi", denied: "Refusé", error: "Erreur",
 };
 export const ORIGIN_LABEL: Record<string, string> = { organizer: "Organisateur", admin_platform: "Plateforme (gratuit)", admin_for_organizer: "Offert à un organisateur" };
-export const METHOD_LABEL: Record<string, string> = { mobile_money: "Mobile money", card: "Carte bancaire" };
+export const METHOD_LABEL: Record<string, string> = { mobile_money: "Mobile money", card: "Carte bancaire", simulation: "Paiement simulé" };
+export const shortMonth = (d: string) => new Intl.DateTimeFormat("fr-FR", { month: "short" }).format(new Date(d.slice(0, 10) + "T00:00:00")).replace(".", "");
 export const TYPE_LABEL: Record<string, string> = { mariage: "Mariage", fiancailles: "Fiançailles", anniversaire: "Anniversaire", bapteme: "Baptême", gala: "Gala", conference: "Conférence" };

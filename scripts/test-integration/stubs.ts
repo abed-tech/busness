@@ -29,5 +29,6 @@ export class NextResponse extends Response {
 export class NextRequest extends Request { get nextUrl() { return new URL(this.url); } }
 export const QRCode = { toDataURL: async (t: string) => "data:image/png;base64," + Buffer.from(t).toString("base64"), toString: async (t: string) => `<svg data-qr="${t}"></svg>` };
 export function useCallback<T>(f: T) { return f; }
+export function useMemo<T>(f: () => T) { return f(); }
 export function useTransition() { return [false, (f: () => void) => f()] as const; }
 export default QRCode;
