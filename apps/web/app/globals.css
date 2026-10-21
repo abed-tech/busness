@@ -159,6 +159,13 @@ dialog.dlg::backdrop { background: rgba(3, 6, 12, .7); }
 .apphead-brand .brand { padding: 0; gap: 8px; }
 .apphead-brand .brand b { font-size: 1.3rem; }
 .apphead-t { grid-row: 2; grid-column: 1 / -1; margin: 0; text-align: center; font-size: .72rem; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 12px; }
+/* mobile : barre plus compacte (76 → 57 px) en réduisant seulement l'espacement vertical ; tailles des éléments inchangées.
+   Les boutons de 44 px restent centrés sur une ligne de 40 px (ils débordent de 2 px dans le padding, sans rien couvrir). */
+@media (max-width: 900px) {
+  :root { --head-h: 57px; }
+  .apphead { grid-template-rows: 40px 15px; padding-top: calc(2px + env(safe-area-inset-top, 0px)); padding-bottom: 0; }
+  .apphead-t { line-height: 15px; }
+}
 .iconbtn { width: 44px; height: 44px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 10px; background: transparent; color: var(--fg); cursor: pointer; }
 .iconbtn:hover { background: var(--panel-2); color: var(--accent); }
 
