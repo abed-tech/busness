@@ -24,4 +24,12 @@ export { default as previewPage } from "../../apps/web/app/preview/[id]/[gid]/pa
 export { default as eventPreviewPage } from "../../apps/web/app/preview/[id]/page";
 export { default as simulatePage } from "../../apps/web/app/(org)/events/[id]/pay/simulate/page";
 export * as tables from "../../apps/web/app/(org)/events/[id]/tables/actions";
+export { default as tablesPage } from "../../apps/web/app/(org)/events/[id]/tables/page";
+export { default as tablesOrganiserPage } from "../../apps/web/app/(org)/events/[id]/tables/organiser/page";
+export { default as tablesPlacerPage } from "../../apps/web/app/(org)/events/[id]/tables/placer/page";
+export { default as tablesAutoResultPage } from "../../apps/web/app/(org)/events/[id]/tables/auto/resultat/page";
+export { default as tablesManualPage } from "../../apps/web/app/(org)/events/[id]/tables/manuel/page";
+export { default as tablesChoosePage } from "../../apps/web/app/(org)/events/[id]/tables/manuel/[gid]/page";
+export { default as tableDetailPage } from "../../apps/web/app/(org)/events/[id]/tables/[n]/page";
+export { default as tablesSwapPage } from "../../apps/web/app/(org)/events/[id]/tables/permuter/page";
 export { loadGuests } from "../../apps/web/lib/event";

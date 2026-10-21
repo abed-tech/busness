@@ -1,5 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { checkMoves, planSeating, tableCount, type Guest, type Plan } from "@ceremonia/core";
 import { requireOrganizer, humanError } from "@/lib/auth";
 import { serverClient } from "@/lib/data/server";
@@ -88,6 +89,77 @@ export async function swapGuests(_: ActionState, fd: FormData): Promise<ActionSt
   const ga = guests.find((g) => g.id === a), gb = guests.find((g) => g.id === b);
   if (!ga || !gb) return { ok: false, message: "Invité introuvable." };
   return save(id, { [a]: gb.table_no || 0, [b]: ga.table_no || 0 }, `Échange de places : ${ga.name} ⇄ ${gb.name}`);
+}
+
+const UUID = /^[0-9a-f-]{36}$/;
+const base = (id: string) => `/events/${id}/tables`;
+
+/**
+ * Placement automatique (page dédiée) : seuls les invités sans table (ou sur une table qui n'existe plus) sont placés,
+ * les placements existants sont conservés ; couples ensemble, personnes seules regroupées, capacité respectée.
+ * Enregistré en base (save_table_plan, capacité revérifiée sous verrou), puis ouverture de la page des résultats.
+ */
+export async function autoPlace(_: ActionState, fd: FormData): Promise<ActionState> {
+  await requireOrganizer();
+  const id = String(fd.get("event_id"));
+  if (!UUID.test(id)) return { ok: false, message: "Événement introuvable." };
+  const { sb, ev, guests } = await ctx(id);
+  if (!ev) return { ok: false, message: "Événement introuvable." };
+  if (!guests.length) return { ok: false, message: "Aucun invité à placer : ajoutez d’abord des invités." };
+  const r = planSeating(ev, guests, { keep: true });
+  if (Object.keys(r.plan).length) {
+    const errs = checkMoves(ev, guests, r.plan);
+    if (errs.length) return { ok: false, message: errs.join(" ") };
+    const { error } = await sb.rpc("save_table_plan", { p_event: id, p_plan: r.plan, p_manual: false, p_label: `Placement automatique : ${r.placed} invitation(s) placée(s)${r.unplaced.length ? `, ${r.unplaced.length} sans place` : ""}` });
+    if (error) return { ok: false, message: `Le placement n’a pas été enregistré : ${humanError(error.message, error.code)}` };
+  }
+  revalidatePath(`/events/${id}`, "layout");
+  redirect(`${base(id)}/auto/resultat?placed=${r.placed}`);
+}
+
+/**
+ * Placement manuel d'un invité à une table (mode « place » : invité sans table) ou déplacement seul (mode « move »).
+ * Vérifié sur les données du moment : invité de l'événement, pas déjà placé (mode place), table existante avec assez de places.
+ */
+export async function placeGuest(_: ActionState, fd: FormData): Promise<ActionState> {
+  await requireOrganizer();
+  const id = String(fd.get("event_id")), gid = String(fd.get("guest_id")), move = fd.get("mode") === "move";
+  const t = Number(fd.get("table"));
+  if (!UUID.test(id) || !UUID.test(gid)) return { ok: false, message: "Invité introuvable." };
+  if (!Number.isInteger(t) || t < 1) return { ok: false, message: "Table invalide." };
+  const { sb, ev, guests } = await ctx(id);
+  if (!ev) return { ok: false, message: "Événement introuvable." };
+  const g = guests.find((x) => x.id === gid);
+  if (!g) return { ok: false, message: "Cet invité n’appartient pas à cet événement." };
+  if (!move && g.table_no) return { ok: false, message: `${g.name} est déjà placé(e) à la table ${g.table_no}.` };
+  if (g.table_no === t) return { ok: false, message: `${g.name} est déjà à la table ${t}.` };
+  const errs = checkMoves(ev, guests, { [gid]: t });
+  if (errs.length) return { ok: false, message: `La table ${t} n’a plus assez de places pour ${g.name} (elle vient peut-être d’être complétée). Choisissez une autre table.` };
+  const { error } = await sb.rpc("save_table_plan", { p_event: id, p_plan: { [gid]: t }, p_manual: true, p_label: `${g.name} placé(e) à la table ${t}` });
+  if (error) {
+    return { ok: false, message: error.code === "23514"
+      ? `La table ${t} n’a plus assez de places pour ${g.name} (elle vient d’être complétée). Choisissez une autre table.`
+      : `Le placement n’a pas été enregistré : ${humanError(error.message, error.code)}` };
+  }
+  revalidatePath(`/events/${id}`, "layout");
+  if (move) redirect(`${base(id)}/${t}?moved=${gid}`);
+  const left = guests.filter((x) => x.id !== gid && !x.table_no).length;
+  redirect(left ? `${base(id)}/manuel?placed=${gid}&t=${t}` : `${base(id)}?complete=${gid}&t=${t}`);
+}
+
+/** Permutation confirmée de deux invités placés sur des tables différentes ; rien n'est enregistré si la vérification échoue. */
+export async function confirmSwap(_: ActionState, fd: FormData): Promise<ActionState> {
+  await requireOrganizer();
+  const id = String(fd.get("event_id")), a = String(fd.get("a")), b = String(fd.get("b"));
+  if (!UUID.test(id) || !UUID.test(a) || !UUID.test(b) || a === b) return { ok: false, message: "Choisissez deux invités différents." };
+  const { guests } = await ctx(id);
+  const ga = guests.find((g) => g.id === a), gb = guests.find((g) => g.id === b);
+  if (!ga || !gb) return { ok: false, message: "Invité introuvable." };
+  if (!ga.table_no || !gb.table_no) return { ok: false, message: "Les deux invités doivent être placés à une table : pour placer un invité sans table, utilisez le placement manuel." };
+  if (ga.table_no === gb.table_no) return { ok: false, message: "Ces deux invités sont déjà à la même table : rien à permuter." };
+  const r = await save(id, { [a]: gb.table_no, [b]: ga.table_no }, `Permutation : ${ga.name} (table ${gb.table_no}) ⇄ ${gb.name} (table ${ga.table_no})`);
+  if (!r?.ok) return { ok: false, message: `Permutation refusée, aucune place n’a changé : ${r?.message}` };
+  redirect(`${base(id)}?swapped=${a},${b}`);
 }
 
 export async function changeTables(_: ActionState, fd: FormData): Promise<ActionState> {

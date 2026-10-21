@@ -19,6 +19,14 @@ function where(rest: string, base: string, items: Item[]): { title: string; back
     if (!s[2]) return { title: R.many, back: base };
     return { title: s[2] === "new" ? `Ajouter des ${R.many.toLowerCase()}` : R.one, back: `${base}/staff/${s[1]}` };
   }
+  if (s[0] === "tables" && s[1]) {
+    // sous-pages des tables : titre et page parente du parcours (choix → placement / permutation → …)
+    const T = { organiser: ["Organiser les tables", sec], placer: ["Placer les invités", `${sec}/organiser`], permuter: ["Permuter les invités", `${sec}/organiser`],
+      auto: s[2] === "resultat" ? ["Résultat du placement", sec] : ["Placement automatique", `${sec}/placer`],
+      manuel: s[2] ? ["Choisir une table", `${sec}/manuel`] : ["Invités non placés", `${sec}/placer`] } as Record<string, [string, string]>;
+    const hit = T[s[1]] || (/^\d+$/.test(s[1]) ? [`Table ${s[1]}`, sec] as [string, string] : null);
+    if (hit) return { title: hit[0], back: hit[1] };
+  }
   if (s[0] === "tracking") return { title: label(`/tracking/${s[1]}`) || "Suivi", back: base };
   if (s[0] === "preview") return { title: "Aperçu de l’invitation", back: s[1] ? `${base}/guests/${s[1]}` : `${base}/guests` };
   if (s[1] === "new") return { title: ({ guests: "Ajouter des invités", drinks: "Ajouter des boissons", buffet: "Ajouter des plats" } as Record<string, string>)[s[0]] || "Ajouter", back: sec };

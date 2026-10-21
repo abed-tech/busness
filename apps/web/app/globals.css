@@ -449,5 +449,32 @@ a.li:hover { border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
 .sim-flag b { color: var(--info); letter-spacing: .08em; text-transform: uppercase; font-size: .78rem; }
 @media (max-width: 760px) { .pay-grid { grid-template-columns: 1fr; } }
 
+/* =================== tables : bouton flottant, choix, cartes cliquables =================== */
+.fab { position: fixed; z-index: 30; right: calc(18px + env(safe-area-inset-right, 0px)); bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+  width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; color: var(--accent-fg);
+  background: linear-gradient(135deg, #e6c98c, var(--accent) 55%, #b8944f); box-shadow: 0 8px 22px rgba(0, 0, 0, .45), 0 2px 6px color-mix(in srgb, var(--accent) 35%, transparent);
+  transition: transform .15s ease, box-shadow .15s ease; -webkit-tap-highlight-color: transparent; }
+.fab:hover { box-shadow: 0 10px 28px rgba(0, 0, 0, .5), 0 3px 10px color-mix(in srgb, var(--accent) 45%, transparent); }
+.fab:active { transform: scale(.94); }
+.fab:focus-visible { outline: 2px solid var(--fg); outline-offset: 3px; }
+@media (min-width: 901px) { .fab { right: 32px; bottom: 32px; width: 64px; height: 64px; } }
+@media (prefers-reduced-motion: reduce) { .fab { transition: none; } .fab:active { transform: none; } }
+.choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; max-width: 860px; }
+.choicecard { display: grid; gap: 6px; padding: 22px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
+.choicecard b { font-family: var(--f-display); font-size: 1.45rem; font-weight: 500; }
+.choicecard small { color: var(--muted); font-size: .9rem; }
+.choicecard:hover, .choicecard:focus-visible { border-color: var(--accent); }
+a.tlink { color: inherit; }
+a.tlink:hover, a.tlink:focus-visible { border-color: color-mix(in srgb, var(--accent) 60%, var(--line)); }
+.cardform { display: grid; gap: 8px; min-width: 0; }
+.pickcard { width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.pickcard:hover:not(:disabled), .pickcard:focus-visible { border-color: var(--accent); }
+.pickcard:disabled { cursor: progress; opacity: .8; }
+.pick-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.pick-h b { font-family: var(--f-display); font-size: 1.25rem; font-weight: 500; }
+.pick-pending { display: inline-flex; align-items: center; gap: 8px; }
+.cardform .btn { width: 100%; }
+a.pickrow { display: flex; align-items: center; gap: 12px; }
+
 /* brouillons dans « Mes événements » */
 .evrow.draft { border-style: dashed; }

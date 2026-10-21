@@ -266,6 +266,61 @@ test("tables : aperçu du placement automatique puis confirmation enregistrée ;
   }
 });
 
+test("tables : bouton flottant, placement manuel puis automatique, détail d'une table, permutation", async () => {
+  const PS = (sp, o = {}) => ({ params: Promise.resolve({ id: EV, ...o }), searchParams: Promise.resolve(sp) });
+  const tableOf = async (gid) => (await W.loadGuests(EV)).find((g) => g.id === gid).table_no || 0;
+  const place = (gid, table, mode = "place") => redirected(W.tables.placeGuest(null, fdOf({ event_id: EV, guest_id: gid, table: String(table), mode })));
+  const proposed = async (gid) => (await render(W.tablesChoosePage(PS({}, { gid })))).filter((n) => n.props?.hidden?.table).map((n) => n.props.hidden.table);
+  // départ connu : 3 places par table, 4 personnes → 2 tables, tout le monde sans table
+  for (const g of await W.loadGuests(EV)) if (g.table_no) assert.equal((await W.tables.moveGuest(null, fdOf({ event_id: EV, guest_id: g.id, table: "0" }))).ok, true);
+  const up = await W.events.updateSettings(null, fdOf({ event_id: EV, table_capacity: "3", expected: "4", phone_prefix: "+243" }));
+  assert.equal(up.ok, true, up.message);
+  const all = await W.loadGuests(EV);
+  const [luc, bola, lucie] = ["Mr Luc", "Couple Bola", "Mme Lucie"].map((n) => all.find((g) => g.name === n));
+  // page principale : bouton flottant vers le choix, cartes de table cliquables
+  const main = await render(W.tablesPage(PS({})));
+  assert.equal(main.find((n) => n.type === "a" && n.props?.className === "fab")?.props.href, `/events/${EV}/tables/organiser`, "bouton flottant présent");
+  assert.ok(main.some((n) => n.type === "a" && n.props?.href === `/events/${EV}/tables/1` && /tlink/.test(n.props.className)), "carte de table cliquable");
+  assert.ok(!main.some((n) => n.type === "button" && /Placer les invités/.test(JSON.stringify(n.props.children ?? ""))), "plus de bouton classique « Placer les invités »");
+  const hrefs = async (p) => (await render(p)).filter((n) => n.type === "a" && n.props?.className === "choicecard").map((n) => n.props.href);
+  assert.deepEqual(await hrefs(W.tablesOrganiserPage(PS({}))), [`/events/${EV}/tables/placer`, `/events/${EV}/tables/permuter`], "deux choix exactement");
+  assert.deepEqual(await hrefs(W.tablesPlacerPage(PS({}))), [`/events/${EV}/tables/auto`, `/events/${EV}/tables/manuel`]);
+  // placement manuel
+  assert.equal((await render(W.tablesManualPage(PS({})))).filter((n) => n.type === "a" && /pickrow/.test(n.props?.className || "")).length, 3, "trois invitations non placées");
+  assert.deepEqual(await proposed(bola.id), ["1", "2"], "tables vides proposées");
+  let r = await place(bola.id, 1);
+  assert.equal(r.url, `/events/${EV}/tables/manuel?placed=${bola.id}&t=1`, "retour à la liste des non placés");
+  assert.equal(await tableOf(bola.id), 1, "affectation enregistrée");
+  assert.match((await place(bola.id, 2)).value?.message || "", /déjà placé/, "pas de double affectation");
+  assert.deepEqual(await proposed(luc.id), ["1", "2"], "table partiellement occupée proposée");
+  await place(luc.id, 1); // table 1 : 3/3, complète
+  assert.deepEqual(await proposed(lucie.id), ["2"], "table complète jamais proposée");
+  r = await place(lucie.id, 1); // page périmée : la table vient d'être complétée
+  assert.match(r.value?.message || "", /plus assez de places/); assert.equal(await tableOf(lucie.id), 0, "rien enregistré");
+  r = await place(lucie.id, 99);
+  assert.equal(r.value?.ok, false, "échec d'enregistrement explicite"); assert.equal(await tableOf(lucie.id), 0);
+  r = await place(lucie.id, 2);
+  assert.equal(r.url, `/events/${EV}/tables?complete=${lucie.id}&t=2`, "tous placés : retour à la liste des tables");
+  assert.equal((await redirected(W.tablesManualPage(PS({})))).url, `/events/${EV}/tables`, "plus personne à placer : redirection");
+  // détail des tables
+  const t1 = texts(await render(W.tableDetailPage(PS({}, { n: "1" })))), t2 = texts(await render(W.tableDetailPage(PS({}, { n: "2" }))));
+  assert.ok(t1.includes("Couple Bola") && t1.includes("Mr Luc") && !t1.includes("Mme Lucie"), "invités de la table 1");
+  assert.ok(t2.includes("Mme Lucie"), "invités de la table 2");
+  // permutation : résultat prévu, puis enregistrement ; même table refusée
+  assert.ok(texts(await render(W.tablesSwapPage(PS({ a: bola.id, b: lucie.id })))).some((t) => /Confirmer la permutation/.test(t)), "confirmation demandée");
+  r = await redirected(W.tables.confirmSwap(null, fdOf({ event_id: EV, a: bola.id, b: lucie.id })));
+  assert.equal(r.url, `/events/${EV}/tables?swapped=${bola.id},${lucie.id}`);
+  assert.deepEqual([await tableOf(bola.id), await tableOf(lucie.id)], [2, 1], "permutation enregistrée");
+  assert.match((await redirected(W.tables.confirmSwap(null, fdOf({ event_id: EV, a: luc.id, b: lucie.id })))).value?.message || "", /même table/);
+  // placement automatique : les placés gardent leur table, page des résultats ouverte
+  await W.tables.moveGuest(null, fdOf({ event_id: EV, guest_id: luc.id, table: "0" }));
+  r = await redirected(W.tables.autoPlace(null, fdOf({ event_id: EV })));
+  assert.equal(r.url, `/events/${EV}/tables/auto/resultat?placed=1`, "page des résultats ouverte");
+  assert.ok((await tableOf(luc.id)) > 0, "invité placé automatiquement");
+  assert.deepEqual([await tableOf(bola.id), await tableOf(lucie.id)], [2, 1], "placements existants conservés");
+  assert.ok(texts(await render(W.tablesAutoResultPage(PS({ placed: "1" })))).includes("Mr Luc"), "tables et invités affichés");
+});
+
 test("aperçu : même composant que l'invitation, formule d'appel, aucun élément de l'espace de gestion", async () => {
   const couple = GUESTS.find((g) => g.kind === "couple");
   const tree = await render(W.previewPage({ params: Promise.resolve({ id: EV, gid: couple.id }) }));
