@@ -21,9 +21,8 @@ export function PayForm({ action, eventId, amount, methods, askPhone }: { action
 
   const mobile = method === "mobile_money" && askPhone;
   const detected = networkOf(phone);
-  const valid = !!rdcPhone(phone);
-  const mismatch = mobile && valid && !!network && !!detected && detected !== network;
-  const ready = !mobile || (valid && !!network && !mismatch);
+  const mismatch = mobile && !!network && !!detected && detected !== network;
+  const ready = !mobile || (!!rdcPhone(phone) && !!network && !mismatch);
 
   const onPhone = (v: string) => {
     setPhone(v);
@@ -42,52 +41,36 @@ export function PayForm({ action, eventId, amount, methods, askPhone }: { action
       {mobile && network && <input type="hidden" name="network" value={network} />}
 
       {methods.length > 1 && (
-        <fieldset className="pay-set">
-          <legend className="lbl">Moyen de paiement</legend>
-          <div className="choice">
-            {methods.map((m) => (
-              <label key={m}>
-                <input type="radio" name="_method" checked={method === m} onChange={() => setMethod(m)} disabled={pending} />
-                <span><b>{m === "mobile_money" ? "Mobile money" : "Carte bancaire"}</b><small>{m === "mobile_money" ? "M-Pesa, Orange, Airtel, Afrimoney" : "Visa, Mastercard"}</small></span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
+        <div className="seg pay-seg" role="group" aria-label="Moyen de paiement">
+          {methods.map((m) => (
+            <button key={m} type="button" aria-pressed={method === m} onClick={() => setMethod(m)} disabled={pending}>
+              {m === "mobile_money" ? "Mobile money" : "Carte"}
+            </button>
+          ))}
+        </div>
       )}
 
       {mobile && <>
-        <fieldset className="pay-set">
-          <legend className="lbl">Réseau</legend>
-          <div className="choice pay-nets">
-            {NETWORKS.map((n) => (
-              <label key={n.id}>
-                <input type="radio" name="_network" checked={network === n.id} onChange={() => setNetwork(n.id)} disabled={pending} />
-                <span><b>{n.label}</b><small>{n.operator} · 0{n.prefixes.join(", 0")}</small></span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
+        <div className="choice pay-nets" role="radiogroup" aria-label="Réseau">
+          {NETWORKS.map((n) => (
+            <label key={n.id}>
+              <input type="radio" name="_network" checked={network === n.id} onChange={() => setNetwork(n.id)} disabled={pending} />
+              <span>{n.label}</span>
+            </label>
+          ))}
+        </div>
         <div className="fld">
-          <label htmlFor="pay-phone">Numéro mobile money</label>
-          <input id="pay-phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="0991234567" maxLength={16} required
-            value={phone} onChange={(e) => onPhone(e.target.value)} disabled={pending} aria-invalid={mismatch || undefined} aria-describedby="pay-phone-hint" />
-          <span id="pay-phone-hint" className={mismatch ? "pay-warn" : "hint"} role={mismatch ? "alert" : undefined}>
-            {mismatch
-              ? `Ce numéro est un numéro ${networkLabel(detected)} : choisissez ${networkLabel(detected)} ou saisissez un numéro ${networkLabel(network)}.`
-              : "Format 0XXXXXXXXX ou +243XXXXXXXXX. La demande de paiement arrive sur ce téléphone."}
-          </span>
+          <input name="phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="Numéro : 0991234567" maxLength={16} required
+            value={phone} onChange={(e) => onPhone(e.target.value)} disabled={pending} aria-label="Numéro mobile money" aria-invalid={mismatch || undefined} />
+          {mismatch && <span className="pay-warn" role="alert">Numéro {networkLabel(detected)} : changez de réseau ou de numéro.</span>}
         </div>
       </>}
 
-      {method === "card" && <p className="hint">Vous serez redirigé vers la page sécurisée de notre prestataire pour saisir votre carte.</p>}
-
       {state?.message && <div className="notice bad" role="alert">{state.message}</div>}
       <button className="btn pay-main" type="submit" disabled={pending || !ready} aria-busy={pending}>
-        {pending
-          ? <><span className="spin" aria-hidden="true" />{mobile ? "Envoi de la demande…" : "Redirection…"}</>
-          : <>Payer {amount}</>}
+        {pending ? <><span className="spin" aria-hidden="true" />Envoi…</> : <>Payer {amount}</>}
       </button>
-      {mobile && <p className="hint">Après avoir cliqué, validez la demande sur votre téléphone avec votre code mobile money. Rien n’est débité sans votre confirmation.</p>}
+      {mobile && <p className="hint pay-note">Validez ensuite la demande sur votre téléphone.</p>}
     </form>
   );
 }

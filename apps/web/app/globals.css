@@ -448,11 +448,18 @@ a.li:hover { border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
 .sim-flag { margin: 0; padding: 10px 12px; border-radius: 10px; border: 1px dashed color-mix(in srgb, var(--info) 55%, var(--line)); background: color-mix(in srgb, var(--info) 8%, transparent); font-size: .88rem; }
 .sim-flag b { color: var(--info); letter-spacing: .08em; text-transform: uppercase; font-size: .78rem; }
 @media (max-width: 760px) { .pay-grid { grid-template-columns: 1fr; } }
-.pay-set { border: 0; margin: 0; padding: 0; display: grid; gap: 8px; min-width: 0; }
-.pay-nets span b { font-size: .98rem; }
+.pay-one { max-width: 440px; margin: 0 auto; gap: 16px; }
+.pay-one .pay-total { margin: 4px 0 0; font-size: 2.4rem; }
+.pay-one details summary { cursor: pointer; width: max-content; }
+.pay-seg { display: flex; }
+.pay-seg button { flex: 1; }
+.pay-nets span { padding: 12px; text-align: center; font-weight: 500; }
 .choice input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
 .choice input:disabled + span { opacity: .6; cursor: progress; }
 .pay-warn { color: var(--bad); font-size: .86rem; }
+.pay-note { margin: 0; text-align: center; }
+.pay-back { justify-self: center; color: var(--muted); font-size: .9rem; }
+.pay-back:hover { color: var(--accent); }
 @media (max-width: 760px) { .pay-nets { grid-template-columns: 1fr 1fr; } }
 
 /* =================== tables : bouton flottant, choix, cartes cliquables =================== */
