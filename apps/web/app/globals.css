@@ -448,19 +448,29 @@ a.li:hover { border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
 .sim-flag { margin: 0; padding: 10px 12px; border-radius: 10px; border: 1px dashed color-mix(in srgb, var(--info) 55%, var(--line)); background: color-mix(in srgb, var(--info) 8%, transparent); font-size: .88rem; }
 .sim-flag b { color: var(--info); letter-spacing: .08em; text-transform: uppercase; font-size: .78rem; }
 @media (max-width: 760px) { .pay-grid { grid-template-columns: 1fr; } }
-.pay-one { max-width: 440px; margin: 0 auto; gap: 16px; }
-.pay-one .pay-total { margin: 4px 0 0; font-size: 2.4rem; }
-.pay-one details summary { cursor: pointer; width: max-content; }
-.pay-seg { display: flex; }
-.pay-seg button { flex: 1; }
-.pay-nets span { padding: 12px; text-align: center; font-weight: 500; }
-.choice input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
-.choice input:disabled + span { opacity: .6; cursor: progress; }
+/* =================== paiement réel : choix du réseau, puis débit =================== */
+.pay-one { max-width: 420px; margin: 24px auto; padding: 22px; }
+.pay-step { position: relative; display: grid; gap: 18px; }
+.pay-h { margin: 0; padding: 0 40px; text-align: center; font-size: 1.15rem; font-weight: 600; line-height: 1.3; }
+.pay-arrow { position: absolute; top: -6px; left: -6px; width: 38px; height: 38px; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--fg); font-size: 1.3rem; cursor: pointer; }
+.pay-arrow:hover:not(:disabled) { background: var(--panel-2); color: var(--accent); }
+.pay-nets { display: grid; gap: 10px; }
+.pay-net { display: flex; align-items: center; gap: 14px; width: 100%; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); color: var(--fg); font: inherit; font-size: 1.02rem; font-weight: 500; text-align: left; cursor: pointer; transition: border-color .15s ease, transform .15s ease; }
+.pay-net:hover { border-color: var(--accent); transform: translateY(-1px); }
+.pay-net:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pay-net .pay-logo { width: 44px; height: 44px; }
+.pay-logo { border-radius: 12px; object-fit: contain; flex: none; }
+.pay-chosen { display: grid; justify-items: center; gap: 8px; font-weight: 600; }
+.pay-one .pay-total { display: block; font-size: 2.2rem; }
 .pay-warn { color: var(--bad); font-size: .86rem; }
-.pay-note { margin: 0; text-align: center; }
-.pay-back { justify-self: center; color: var(--muted); font-size: .9rem; }
-.pay-back:hover { color: var(--accent); }
-@media (max-width: 760px) { .pay-nets { grid-template-columns: 1fr 1fr; } }
+.pay-state { justify-items: center; text-align: center; }
+.pay-state .hint { margin: 0; }
+.pay-state .pay-main, .pay-state .notice { justify-self: stretch; text-align: left; }
+.pay-spin { width: 40px; height: 40px; border-width: 3px; color: var(--accent); }
+.pay-icon { width: 52px; height: 52px; display: grid; place-items: center; border-radius: 50%; font-size: 1.5rem; font-weight: 700; }
+.pay-icon.ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); }
+.pay-icon.bad { color: var(--bad); background: color-mix(in srgb, var(--bad) 14%, transparent); }
+@media (prefers-reduced-motion: reduce) { .pay-net { transition: none; } }
 
 /* =================== tables : bouton flottant, choix, cartes cliquables =================== */
 .fab { position: fixed; z-index: 30; right: calc(18px + env(safe-area-inset-right, 0px)); bottom: calc(22px + env(safe-area-inset-bottom, 0px));

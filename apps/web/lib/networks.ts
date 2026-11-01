@@ -1,13 +1,12 @@
 /**
  * Réseaux mobile money de RDC proposés sur la page de paiement, avec leurs préfixes (après le 0 national).
- * Wonya détecte lui-même l'opérateur à partir du numéro : le choix du réseau sert à guider l'organisateur
- * et à repérer un numéro saisi pour le mauvais réseau avant d'envoyer la demande.
+ * Wonya détecte lui-même l'opérateur à partir du numéro : le réseau choisi sert à guider l'organisateur
+ * et à repérer un numéro d'un autre réseau avant d'envoyer la demande. Logos : public/networks/<id>.svg.
  */
 export const NETWORKS = [
-  { id: "mpesa", label: "M-Pesa", operator: "Vodacom", prefixes: ["81", "82", "83"] },
-  { id: "orange", label: "Orange Money", operator: "Orange", prefixes: ["80", "84", "85", "89"] },
-  { id: "airtel", label: "Airtel Money", operator: "Airtel", prefixes: ["97", "98", "99"] },
-  { id: "africell", label: "Afrimoney", operator: "Africell", prefixes: ["90", "91"] },
+  { id: "mpesa", label: "M-Pesa", prefixes: ["81", "82", "83"] },
+  { id: "airtel", label: "Airtel Money", prefixes: ["97", "98", "99"] },
+  { id: "orange", label: "Orange Money", prefixes: ["80", "84", "85", "89"] },
 ] as const;
 
 export type NetworkId = (typeof NETWORKS)[number]["id"];

@@ -2,12 +2,15 @@ import Link from "next/link";
 import { requireOrganizer } from "@/lib/auth";
 import { serverClient } from "@/lib/data/server";
 import { syncWonyaPayment } from "@/lib/webhooks/wonyapay";
-import { PageHeader } from "@/components/ui";
-import { AutoRefresh } from "@/components/AutoRefresh";
-import { money, TX_LABEL } from "@/lib/format";
+import { AutoRefresh, AutoRedirect } from "@/components/AutoRefresh";
+import { money } from "@/lib/format";
 
 type Tx = { reference: string; amount_cents: number; currency: string; status: string; method: string; provider: string; provider_ref: string | null; created_at: string };
 
+/**
+ * Suivi d'un paiement réel : attente de la confirmation sur le téléphone, puis succès (suite automatique) ou échec (réessayer).
+ * Le statut vient uniquement du prestataire (notification signée ou statut relu auprès de Wonya), jamais du navigateur.
+ */
 export default async function PayReturn({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ ref?: string; dev?: string }> }) {
   await requireOrganizer();
   const { id } = await params;
@@ -24,27 +27,57 @@ export default async function PayReturn({ params, searchParams }: { params: Prom
       console.error("wonyapay-return", (e as Error).message);
     }
   }
-  return (
-    <>
-      <PageHeader eyebrow="Règlement" title={!tx ? "Paiement introuvable" : tx.status === "succeeded" ? "Paiement confirmé" : tx.status === "pending" ? (wonya ? "Validez le paiement sur votre téléphone" : "Paiement en cours de confirmation") : "Paiement non abouti"} />
-      {tx && (
-        <div className="card form" style={{ maxWidth: 560 }}>
-          <dl className="kv"><dt>Référence</dt><dd><code>{tx.reference}</code></dd><dt>Montant</dt><dd>{money(tx.amount_cents, tx.currency)}</dd><dt>État</dt><dd>{TX_LABEL[tx.status]}</dd></dl>
-          {tx.status === "pending" && <>
-            {wonya
-              ? <p className="hint">Une demande de paiement a été envoyée à votre numéro : confirmez-la avec votre code mobile money. Sans confirmation dans la minute, elle expire et rien n’est débité. Cette page se met à jour toute seule.</p>
-              : <p className="hint">La confirmation arrive directement du prestataire de paiement ; cette page se met à jour toute seule.</p>}
-            {sp.dev && <div className="notice">Mode test local : aucun prestataire n’est appelé. Confirmez ce paiement avec la commande <code>pnpm dev:confirm-payment {tx.reference}</code> (voir le guide de démarrage).</div>}
-            <AutoRefresh seconds={4} />
-          </>}
-          {tx.status === "failed" && wonya && <p className="hint">Demande refusée ou expirée : rien n’a été débité. Vous pouvez relancer le paiement.</p>}
-          {tx.status === "succeeded" && <p>L’envoi des invitations est activé.</p>}
-          <div className="row">
-            {(tx.status === "failed" || tx.status === "cancelled") && <Link className="btn" href={`/events/${id}/pay`}>Réessayer le paiement</Link>}
-            <Link className={tx.status === "failed" || tx.status === "cancelled" ? "btn ghost" : "btn"} href={`/events/${id}`}>Retour à l’événement</Link>
-          </div>
+  const retry = <Link className="btn pay-main" href={`/events/${id}/pay`}>Réessayer</Link>;
+
+  if (!tx) {
+    return <section className="card pay-one"><div className="pay-step"><p className="pay-h">Paiement introuvable</p>{retry}</div></section>;
+  }
+  const amount = money(tx.amount_cents, tx.currency);
+
+  if (tx.status === "succeeded") {
+    // premier paiement confirmé : c'est lui qui vient de créer l'événement (transactions_activate_draft)
+    const { data: paid } = await sb.from("transactions").select("reference").eq("event_id", id).eq("status", "succeeded").limit(2);
+    const next = `/events/${id}${(paid as unknown[] | null)?.length === 1 ? "?created=1" : ""}`;
+    return (
+      <section className="card pay-one">
+        <div className="pay-step pay-state" role="status">
+          <span className="pay-icon ok" aria-hidden="true">✓</span>
+          <p className="pay-h">Paiement confirmé</p>
+          <p className="hint">{amount} reçus. Nous finalisons votre événement…</p>
+          <Link className="btn pay-main" href={next}>Continuer</Link>
+          <AutoRedirect to={next} />
         </div>
-      )}
-    </>
+      </section>
+    );
+  }
+
+  if (tx.status === "pending") {
+    const late = Date.now() - Date.parse(tx.created_at) > 3 * 60_000; // la demande Wonya a expiré depuis longtemps
+    return (
+      <section className="card pay-one">
+        <div className="pay-step pay-state" aria-live="polite">
+          <span className="spin pay-spin" aria-hidden="true" />
+          <p className="pay-h">{wonya ? "Confirmez sur votre téléphone" : "Confirmation en cours…"}</p>
+          <p className="hint">{wonya ? <>Saisissez votre code PIN pour valider le débit de <b>{amount}</b>.</> : "La confirmation arrive directement du prestataire de paiement."}</p>
+          {sp.dev && <div className="notice">Mode test local : confirmez avec <code>pnpm dev:confirm-payment {tx.reference}</code>.</div>}
+          {late && <>
+            <p className="hint">Aucune confirmation reçue. Si vous n’avez rien validé, rien n’a été débité.</p>
+            {retry}
+          </>}
+          <AutoRefresh seconds={4} quiet />
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="card pay-one">
+      <div className="pay-step pay-state" role="alert">
+        <span className="pay-icon bad" aria-hidden="true">✕</span>
+        <p className="pay-h">Paiement non abouti</p>
+        <p className="hint">{tx.status === "cancelled" ? "Paiement annulé." : "Demande refusée ou expirée."} Rien n’a été débité.</p>
+        {retry}
+      </div>
+    </section>
   );
 }

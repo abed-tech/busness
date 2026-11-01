@@ -25,6 +25,14 @@ export async function startPayment(_: ActionState, fd: FormData): Promise<Action
   // réseau choisi sur la page de paiement : un numéro d'un autre réseau n'est pas envoyé à Wonya
   const network = String(fd.get("network") || ""), detected = phone ? networkOf(phone) : null;
   if (phone && network && detected && detected !== network) return { ok: false, message: `Ce numéro est un numéro ${networkLabel(detected)} : choisissez ce réseau ou corrigez le numéro.` };
+  if (provider === "wonyapay") {
+    // une demande envoyée il y a moins de 2 minutes attend encore la confirmation : on la suit au lieu d'en créer une seconde
+    const { data: open } = await (await serverClient()).from("transactions").select("reference, provider_ref")
+      .eq("event_id", id).eq("provider", "wonyapay").eq("status", "pending").gte("created_at", new Date(Date.now() - 120_000).toISOString())
+      .order("created_at", { ascending: false }).limit(1);
+    const tx = (open as { reference: string; provider_ref: string | null }[] | null)?.find((t) => t.provider_ref);
+    if (tx) redirect(`${origin()}/events/${id}/pay/return?ref=${tx.reference}`);
+  }
   const r = await rpc<{ ok: boolean; error?: string; reference: string; amount_cents: number; currency: string }>("create_checkout", {
     p_event: id, p_method: method, p_provider: provider,
   });
