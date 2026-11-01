@@ -7,6 +7,7 @@ export const NETWORKS = [
   { id: "mpesa", label: "M-Pesa", prefixes: ["81", "82", "83"] },
   { id: "airtel", label: "Airtel Money", prefixes: ["97", "98", "99"] },
   { id: "orange", label: "Orange Money", prefixes: ["80", "84", "85", "89"] },
+  { id: "africell", label: "Afrimoney", prefixes: ["90", "91"] },
 ] as const;
 
 export type NetworkId = (typeof NETWORKS)[number]["id"];
