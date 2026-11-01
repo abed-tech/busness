@@ -5,6 +5,7 @@ import { requireOrganizer, rpc, origin } from "@/lib/auth";
 import { serverClient } from "@/lib/data/server";
 import { paymentMethods, simulationAllowed, stripeCheckout, cinetpayCheckout, wonyapayCollect, wonyaMessage, rdcPhone } from "@/lib/payments";
 import { attachWonyaId } from "@/lib/webhooks/wonyapay";
+import { networkOf, networkLabel } from "@/lib/networks";
 import type { ActionState } from "@/components/ConfirmAction";
 
 /**
@@ -21,6 +22,9 @@ export async function startPayment(_: ActionState, fd: FormData): Promise<Action
   const provider = method === "card" ? "stripe" : m.mobileProvider;
   const phone = provider === "wonyapay" ? rdcPhone(String(fd.get("phone") || "")) : null;
   if (provider === "wonyapay" && !phone) return { ok: false, message: "Indiquez votre numéro mobile money de RDC : 0XXXXXXXXX ou +243XXXXXXXXX." };
+  // réseau choisi sur la page de paiement : un numéro d'un autre réseau n'est pas envoyé à Wonya
+  const network = String(fd.get("network") || ""), detected = phone ? networkOf(phone) : null;
+  if (phone && network && detected && detected !== network) return { ok: false, message: `Ce numéro est un numéro ${networkLabel(detected)} : choisissez ce réseau ou corrigez le numéro.` };
   const r = await rpc<{ ok: boolean; error?: string; reference: string; amount_cents: number; currency: string }>("create_checkout", {
     p_event: id, p_method: method, p_provider: provider,
   });

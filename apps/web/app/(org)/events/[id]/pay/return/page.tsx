@@ -37,9 +37,12 @@ export default async function PayReturn({ params, searchParams }: { params: Prom
             {sp.dev && <div className="notice">Mode test local : aucun prestataire n’est appelé. Confirmez ce paiement avec la commande <code>pnpm dev:confirm-payment {tx.reference}</code> (voir le guide de démarrage).</div>}
             <AutoRefresh seconds={4} />
           </>}
-          {tx.status === "failed" && wonya && <p className="hint">Demande refusée ou expirée : rien n’a été débité. Vous pouvez relancer le paiement depuis l’événement.</p>}
+          {tx.status === "failed" && wonya && <p className="hint">Demande refusée ou expirée : rien n’a été débité. Vous pouvez relancer le paiement.</p>}
           {tx.status === "succeeded" && <p>L’envoi des invitations est activé.</p>}
-          <div><Link className="btn" href={`/events/${id}`}>Retour à l’événement</Link></div>
+          <div className="row">
+            {(tx.status === "failed" || tx.status === "cancelled") && <Link className="btn" href={`/events/${id}/pay`}>Réessayer le paiement</Link>}
+            <Link className={tx.status === "failed" || tx.status === "cancelled" ? "btn ghost" : "btn"} href={`/events/${id}`}>Retour à l’événement</Link>
+          </div>
         </div>
       )}
     </>

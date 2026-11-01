@@ -8,7 +8,7 @@ import { DraftNav } from "@/components/DraftNav";
 import { logout } from "../../../(auth)/actions";
 
 /** Pages ouvertes à un brouillon non payé : les étapes de la création et le paiement. */
-const DRAFT_PAGES = /^\/(draft|photos|pay\/simulate|pay\/return)(\/|$)/;
+const DRAFT_PAGES = /^\/(draft|photos|pay)(\/|$)/;
 
 export default async function EventLayout({ children, params }: { children: ReactNode; params: Promise<{ id: string }> }) {
   await requireOrganizer();

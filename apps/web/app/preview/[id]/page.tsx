@@ -2,8 +2,8 @@ import { requireOrganizer } from "@/lib/auth";
 import { loadEvent, loadGuests, loadCatalog, canWrite } from "@/lib/event";
 import { Invitation } from "@/components/Invitation";
 import { GenerateBar } from "@/components/SimulatedPayment";
-import { startSimulatedPayment, startPayment } from "../../(org)/events/[id]/pay/actions";
-import { paymentMethods, simulationAllowed } from "@/lib/payments";
+import { startSimulatedPayment } from "../../(org)/events/[id]/pay/actions";
+import { simulationAllowed } from "@/lib/payments";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Aperçu de l’invitation · Skyevenapp", robots: { index: false, follow: false } };
@@ -14,14 +14,8 @@ export const viewport = { width: "device-width", initialScale: 1, themeColor: "#
  * Étape « Aperçu » de la création : l'invitation telle que l'invité la recevra (même composant que /i/[token],
  * mêmes données : textes, photos, programme, boissons et plats), sans aucun élément de l'espace organisateur.
  * Elle est personnalisée avec le premier invité saisi ; sans invité, avec un nom d'exemple.
- * Pour un brouillon non payé, la barre fixe « Générer mon invitation » ouvre le paiement.
+ * Pour un brouillon non payé, la barre fixe « Générer mon invitation » ouvre le paiement (simulé, ou la page de paiement).
  */
-/** Moyens de paiement réels configurés côté serveur (Stripe, CinetPay). */
-function realMethods(): ("card" | "mobile_money")[] {
-  const m = paymentMethods();
-  return [...(m.card ? ["card" as const] : []), ...(m.mobile_money ? ["mobile_money" as const] : [])];
-}
-
 export default async function EventPreview({ params }: { params: Promise<{ id: string }> }) {
   const me = await requireOrganizer();
   const { id } = await params;
@@ -45,7 +39,7 @@ export default async function EventPreview({ params }: { params: Promise<{ id: s
       {invitation}
       {simulationAllowed()
         ? <GenerateBar action={startSimulatedPayment} eventId={id} editHref={`/events/${id}/draft`} />
-        : <GenerateBar action={startPayment} eventId={id} editHref={`/events/${id}/draft`} methods={realMethods()} askPhone={paymentMethods().mobileProvider === "wonyapay"} />}
+        : <GenerateBar eventId={id} editHref={`/events/${id}/draft`} payHref={`/events/${id}/pay`} />}
     </div>
   );
 }

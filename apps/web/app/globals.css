@@ -435,10 +435,6 @@ a.li:hover { border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
 .pv-edit:hover { border-color: var(--accent); color: var(--accent); }
 .pv-err { max-width: 560px; margin: 0 auto 10px; padding: 10px 12px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--bad) 50%, var(--line)); background: color-mix(in srgb, var(--bad) 12%, var(--panel)); color: var(--fg); font-size: .9rem; }
 .pv:has(.pv-err) { --pv-bar: 140px; }
-.pv-phone { display: block; width: 100%; max-width: 560px; margin: 0 auto 10px; min-height: 46px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); font: inherit; font-size: 1rem; }
-.pv-phone:focus { outline: none; border-color: var(--accent); }
-.pv:has(.pv-phone) { --pv-bar: 134px; }
-.pv:has(.pv-phone):has(.pv-err) { --pv-bar: 196px; }
 .spin { width: 18px; height: 18px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .8s linear infinite; flex: none; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spin { animation-duration: 2.4s; } .pv-cta { transition: none; } }
@@ -452,6 +448,12 @@ a.li:hover { border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
 .sim-flag { margin: 0; padding: 10px 12px; border-radius: 10px; border: 1px dashed color-mix(in srgb, var(--info) 55%, var(--line)); background: color-mix(in srgb, var(--info) 8%, transparent); font-size: .88rem; }
 .sim-flag b { color: var(--info); letter-spacing: .08em; text-transform: uppercase; font-size: .78rem; }
 @media (max-width: 760px) { .pay-grid { grid-template-columns: 1fr; } }
+.pay-set { border: 0; margin: 0; padding: 0; display: grid; gap: 8px; min-width: 0; }
+.pay-nets span b { font-size: .98rem; }
+.choice input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.choice input:disabled + span { opacity: .6; cursor: progress; }
+.pay-warn { color: var(--bad); font-size: .86rem; }
+@media (max-width: 760px) { .pay-nets { grid-template-columns: 1fr 1fr; } }
 
 /* =================== tables : bouton flottant, choix, cartes cliquables =================== */
 .fab { position: fixed; z-index: 30; right: calc(18px + env(safe-area-inset-right, 0px)); bottom: calc(22px + env(safe-area-inset-bottom, 0px));

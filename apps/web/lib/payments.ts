@@ -67,11 +67,7 @@ export async function cinetpayCheckout(o: { reference: string; amountCents: numb
 
 const WONYA_API = "https://api.wonyasoft.com/v1";
 
-/** Numéro mobile RDC : 0XXXXXXXXX ou +243XXXXXXXXX (espaces, points et tirets tolérés). null si invalide. */
-export function rdcPhone(v: string): string | null {
-  const s = v.replace(/[\s.-]/g, "").replace(/^243/, "+243");
-  return /^(?:\+243|0)\d{9}$/.test(s) ? s : null;
-}
+export { rdcPhone } from "./networks";
 
 /** Erreur de l'API Wonya : `code` stable (invalid_payment, payment_rejected…), `status` HTTP (0 : pas de réponse). */
 export class WonyaError extends Error {

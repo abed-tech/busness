@@ -11,7 +11,6 @@ import { ConfirmAction } from "@/components/ConfirmAction";
 import { CopyButton } from "@/components/CopyButton";
 import { date, dateTime, money, TYPE_LABEL, TX_LABEL, plur } from "@/lib/format";
 import { updateSettings, rotateServiceKey } from "../actions";
-import { startPayment } from "./pay/actions";
 
 type Billing = { free: boolean; persons: number; units: number; unit_cents: number; unit_persons: number; currency: string; due_cents: number; paid_cents: number; pending_cents: number; remaining_cents: number; can_send: boolean };
 type Stats = { confirmed_persons: number; presence: { persons: number } };
@@ -83,13 +82,9 @@ export default async function EventHome({ params, searchParams }: { params: Prom
               {b.pending_cents > 0 && <p className="hint">Un paiement de {money(b.pending_cents, b.currency)} attend la confirmation du prestataire.</p>}
               {b.remaining_cents > 0 && ev.owner_id === me.id && write && (
                 <div className="row">
-                  {pm.mobile_money && (
-                    <ActionForm action={startPayment} hidden={{ event_id: id, method: "mobile_money" }} submit={`Payer ${money(b.remaining_cents, b.currency)} par mobile money`}>
-                      {pm.mobileProvider === "wonyapay" && <div className="fld"><label htmlFor="pay-phone">Numéro mobile money (RDC)</label><input id="pay-phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="0991234567" maxLength={16} required /></div>}
-                    </ActionForm>
-                  )}
-                  {pm.card && <ActionForm action={startPayment} hidden={{ event_id: id, method: "card" }} submit="Payer par carte bancaire" />}
-                  {!pm.card && !pm.mobile_money && <p className="notice">Le paiement en ligne n’est pas encore configuré sur la plateforme.</p>}
+                  {pm.card || pm.mobile_money
+                    ? <Link className="btn" href={`/events/${id}/pay`}>Payer {money(b.remaining_cents, b.currency)}</Link>
+                    : <p className="notice">Le paiement en ligne n’est pas encore configuré sur la plateforme.</p>}
                 </div>
               )}
               {!!txs?.length && <details><summary className="hint">Historique ({txs.length})</summary>{txs.map((t: { reference: string; created_at: string; amount_cents: number; currency: string; status: string }) => <div key={t.reference} className="row" style={{ justifyContent: "space-between" }}><code>{t.reference}</code><span className="hint">{dateTime(t.created_at)}</span><span>{money(t.amount_cents, t.currency)}</span><span className="hint">{TX_LABEL[t.status]}</span></div>)}</details>}
