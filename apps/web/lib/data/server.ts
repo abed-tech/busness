@@ -36,7 +36,7 @@ export function anonClient() {
 /** Ouvre une session organisateur et pose le cookie (httpOnly, Secure en production, SameSite=Lax). */
 export async function startSession(userId: string) {
   const h = await headers();
-  const { token, expiresAt } = await auth.createSession(userId, "org", { ip: (h.get("x-forwarded-for") || "").split(",")[0].trim(), userAgent: h.get("user-agent") || "" });
+  const { token, expiresAt } = await auth.createSession(userId, "org", { ip: auth.clientIp(h), userAgent: h.get("user-agent") || "" });
   (await cookies()).set(ORG_COOKIE, token, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", expires: expiresAt });
 }
 

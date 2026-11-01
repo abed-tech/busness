@@ -14,7 +14,7 @@ export async function login(_: AuthState, fd: FormData): Promise<AuthState> {
   const parsed = LoginSchema.safeParse({ email: fd.get("email"), password: fd.get("password") });
   if (!parsed.success) return { message: "E-mail ou mot de passe invalide." };
   const h = await headers();
-  const ip = (h.get("x-forwarded-for") || "").split(",")[0].trim();
+  const ip = auth.clientIp(h);
   const { data: guard } = await rpc<{ allowed: boolean; retry_after_minutes: number }>(SERVICE, "admin_login_guard", { p_email: parsed.data.email, p_ip: ip });
   if (guard && guard.allowed === false) return { message: `Trop de tentatives. Réessayez dans ${guard.retry_after_minutes} minutes.` };
 

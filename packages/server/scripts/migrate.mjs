@@ -7,6 +7,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { fileURLToPath } from "node:url";
 import pg from "pg";
 import { loadEnvFile } from "./local-guard.mjs";
 
@@ -51,7 +52,7 @@ export async function migrate({ connectionString, dir, log = console.log, ssl })
   return applied;
 }
 
-const isMain = process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname);
+const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url); // fileURLToPath : correct aussi sous Windows
 if (isMain) {
   const dir = path.resolve(process.argv[2] || "db/migrations");
   if (!process.env.DATABASE_URL) loadEnvFile("apps/web/.env.local"); // développement local

@@ -2,7 +2,8 @@ import { requireOrganizer } from "@/lib/auth";
 import { loadEvent, loadGuests, loadCatalog, canWrite } from "@/lib/event";
 import { Invitation } from "@/components/Invitation";
 import { GenerateBar } from "@/components/SimulatedPayment";
-import { startSimulatedPayment } from "../../(org)/events/[id]/pay/actions";
+import { startSimulatedPayment, startPayment } from "../../(org)/events/[id]/pay/actions";
+import { paymentMethods, simulationAllowed } from "@/lib/payments";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Aperçu de l’invitation · Skyevenapp", robots: { index: false, follow: false } };
@@ -15,6 +16,12 @@ export const viewport = { width: "device-width", initialScale: 1, themeColor: "#
  * Elle est personnalisée avec le premier invité saisi ; sans invité, avec un nom d'exemple.
  * Pour un brouillon non payé, la barre fixe « Générer mon invitation » ouvre le paiement.
  */
+/** Moyens de paiement réels configurés côté serveur (Stripe, CinetPay). */
+function realMethods(): ("card" | "mobile_money")[] {
+  const m = paymentMethods();
+  return [...(m.card ? ["card" as const] : []), ...(m.mobile_money ? ["mobile_money" as const] : [])];
+}
+
 export default async function EventPreview({ params }: { params: Promise<{ id: string }> }) {
   const me = await requireOrganizer();
   const { id } = await params;
@@ -36,7 +43,9 @@ export default async function EventPreview({ params }: { params: Promise<{ id: s
   return (
     <div className="pv">
       {invitation}
-      <GenerateBar action={startSimulatedPayment} eventId={id} editHref={`/events/${id}/draft`} />
+      {simulationAllowed()
+        ? <GenerateBar action={startSimulatedPayment} eventId={id} editHref={`/events/${id}/draft`} />
+        : <GenerateBar action={startPayment} eventId={id} editHref={`/events/${id}/draft`} methods={realMethods()} askPhone={paymentMethods().mobileProvider === "wonyapay"} />}
     </div>
   );
 }

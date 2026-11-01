@@ -31,6 +31,8 @@ export default {
           { key: "Referrer-Policy", value: "no-referrer" },
           // caméra autorisée pour le scanner des contrôleurs et serveurs (sur ce domaine uniquement)
           { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=()" },
+          // paiement par redirection (pas de fenêtre surgissante) : aucune page tierce ne garde de lien vers celle-ci
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
         ],
       },
       { source: "/(i|k|s)/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }, { key: "Cache-Control", value: "no-store" }] },

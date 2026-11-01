@@ -38,7 +38,7 @@ export async function serverClient() {
 
 export async function startSession(userId: string) {
   const h = await headers();
-  const { token } = await auth.createSession(userId, "admin", { ip: (h.get("x-forwarded-for") || "").split(",")[0].trim(), userAgent: h.get("user-agent") || "" });
+  const { token } = await auth.createSession(userId, "admin", { ip: auth.clientIp(h), userAgent: h.get("user-agent") || "" });
   // cookie de session (sans date d'expiration) : fermé avec le navigateur ; la base limite aussi la durée et l'inactivité
   (await cookies()).set(ADMIN_COOKIE, token, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "strict", path: "/" });
 }

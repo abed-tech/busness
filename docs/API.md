@@ -25,7 +25,7 @@ Avec Expo, conserver le jeton dans `expo-secure-store` (jamais en clair dans Asy
 | GET | `/api/v1/events` | oui | événements visibles (RLS) |
 | GET | `/api/v1/events/{id}` | oui | détail |
 | GET | `/api/v1/events/{id}/guests` | oui | invités (tables, réponses, jetons d'invitation, codes) |
-| POST | `/api/v1/events/{id}/checkout` | oui | `{ "method": "card" \| "mobile_money" }` → 201 `{ reference, amount_cents, currency, payment_url }` |
+| POST | `/api/v1/events/{id}/checkout` | oui | `{ "method": "card" \| "mobile_money", "phone"? }` → 201 `{ reference, amount_cents, currency, payment_url }` |
 | POST | `/api/v1/rpc/{fonction}` | selon la fonction | appelle une fonction autorisée de la base ; corps = arguments `p_…` → `{ "data": … }` |
 
 Fonctions autorisées par `/rpc` (chacune revérifie les droits dans la base) :
@@ -51,5 +51,7 @@ idempotente : une seule entrée par invité, même avec 20 validations simultan�
 ## Paiement depuis le mobile
 
 Le montant n'est jamais fourni par le client : il est calculé par la base. Ouvrir `payment_url` dans le navigateur ;
-le paiement n'est confirmé que par le webhook signé du prestataire. Ensuite, interroger `event_billing` (`can_send`).
+le paiement n'est confirmé que par le webhook signé du prestataire. Mobile money par Wonya Pay (RDC) : envoyer `phone`
+(`0XXXXXXXXX` ou `+243XXXXXXXXX`) ; `payment_url` vaut `null`, le payeur valide la demande reçue sur son téléphone
+(une minute au plus). Ensuite, interroger `event_billing` (`can_send`).
 Limite connue : la page de retour est une page web de l'espace organisateur (un lien profond pourra être ajouté).

@@ -67,11 +67,13 @@ test("second facteur : inscription, vérification → session aal2", async () =>
 let E;
 test("données : insertion avec valeurs par défaut et retour, règles RLS entre organisateurs", async () => {
   const a = S.dataClient(ctxOf(A)), b = S.dataClient(ctxOf(B));
-  const ins = await a.from("events").insert({ owner_id: A, title: "Fête " + uniq, event_date: "2027-05-01", venue: "Salle", address: "Rue", table_capacity: 8, offer: "drinks" }).select("id, short_id, status").single();
-  assert.equal(ins.error, null, JSON.stringify(ins.error)); E = ins.data.id; assert.equal(ins.data.status, "active"); assert.ok(ins.data.short_id);
+  const ins = await a.from("events").insert({ owner_id: A, title: "Fête " + uniq, event_date: "2027-05-01", venue: "Salle", address: "Rue", table_capacity: 8, offer: "drinks", expected: 20 }).select("id, short_id, status").single();
+  // un événement d'organisateur naît brouillon (migration 1400) ; activé ici comme après un paiement confirmé
+  assert.equal(ins.error, null, JSON.stringify(ins.error)); E = ins.data.id; assert.equal(ins.data.status, "draft"); assert.ok(ins.data.short_id);
+  await S.asOwner((q) => q.query("update public.events set status = 'active', activated_at = now() where id = $1", [E]));
   const mine = await a.from("events").select("id, title").eq("id", E).maybeSingle(); assert.equal(mine.data.title, "Fête " + uniq);
   const other = await b.from("events").select("id").eq("id", E).maybeSingle(); assert.equal(other.data, null, "invisible pour un autre organisateur");
-  const forged = await b.from("events").insert({ owner_id: A, title: "x", event_date: "2027-05-01", venue: "v", address: "a" });
+  const forged = await b.from("events").insert({ owner_id: A, title: "x", event_date: "2027-05-01", venue: "v", address: "a", expected: 1 });
   assert.equal(forged.error?.code, "42501", "création au nom d'un autre refusée");
   const anon = await S.dataClient(S.ANON).from("events").select("id").eq("id", E);
   assert.ok(anon.error?.code === "42501" || (anon.data && anon.data.length === 0), "anonyme sans accès");
@@ -114,6 +116,52 @@ test("photos : écriture par le propriétaire, lecture publique si utilisée, su
   await S.dataClient(ctxOf(A)).from("events").update({ photos: [p] }).eq("id", E);
   const r = await S.readPhoto(p); assert.ok(r && r.content.equals(jpg)); assert.equal(r.contentType, "image/jpeg");
   assert.equal(await S.readPhoto("../../etc/passwd"), null);
+});
+
+// ---------- audit de sécurité (octobre 2026) ----------
+test("second facteur : bloqué après 5 codes faux en 15 minutes, même avec le bon code", async () => {
+  const c = await S.auth.createUser(`mfa-${uniq}@test.cd`, "Motdepasse-3", true); const C = c.userId;
+  const { token } = await S.auth.createSession(C, "admin"); const s = await S.auth.getSession(token, "admin");
+  const f = await S.auth.enrollFactor(C, "c@test");
+  const wrong = S.totpAt(f.secret, S.stepOf() + 10); // code valide dans 5 minutes : faux maintenant
+  for (let i = 0; i < 5; i++) assert.equal(await S.auth.verifyFactor(C, f.factorId, wrong, s.sessionId), false);
+  assert.equal(await S.auth.mfaLocked(C), true);
+  assert.equal(await S.auth.verifyFactor(C, f.factorId, S.totpAt(f.secret, S.stepOf()), s.sessionId), false, "bon code refusé pendant le blocage");
+  assert.equal((await S.auth.getSession(token, "admin")).aal, "aal1");
+  assert.equal(await S.auth.mfaLocked(B), false, "blocage propre à chaque compte");
+});
+
+test("limite d'envoi : 3 demandes par adresse et par fenêtre, adresses indépendantes", async () => {
+  const e = `forgot-${uniq}@test.cd`;
+  for (let i = 0; i < 3; i++) assert.equal(await S.auth.allowAttempt("forgot", e, 3, 60), true);
+  assert.equal(await S.auth.allowAttempt("forgot", e.toUpperCase(), 3, 60), false, "casse ignorée");
+  assert.equal(await S.auth.allowAttempt("forgot", `autre-${uniq}@test.cd`, 3, 60), true);
+});
+
+test("adresse IP : en-têtes du proxy préférés au X-Forwarded-For choisi par le client", () => {
+  const h = (o) => ({ get: (n) => o[n] ?? null });
+  assert.equal(S.auth.clientIp(h({ "x-forwarded-for": "6.6.6.6, 1.2.3.4", "cf-connecting-ip": "1.2.3.4" })), "1.2.3.4");
+  assert.equal(S.auth.clientIp(h({ "x-forwarded-for": "6.6.6.6", "true-client-ip": "5.5.5.5" })), "5.5.5.5");
+  assert.equal(S.auth.clientIp(h({ "x-forwarded-for": " 9.9.9.9 , 1.1.1.1" })), "9.9.9.9");
+  assert.equal(S.auth.clientIp(h({})), "");
+});
+
+test("insertion d'invités : jeton, code et réponse imposés par le client refusés", async () => {
+  const a = S.dataClient(ctxOf(A));
+  for (const extra of [{ invite_token: "jeton-choisi-par-moi" }, { code: "AAAAAA" }, { rsvp: "yes" }, { whatsapp_opened_at: "2027-01-01" }]) {
+    const r = await a.from("guests").insert({ event_id: E, name: "Forgé", kind: "mr", ...extra });
+    assert.equal(r.error?.code, "42501", `colonne ${Object.keys(extra)[0]} refusée`);
+  }
+  assert.equal((await a.from("guests").insert({ event_id: E, name: "Normal", kind: "mr" })).error, null, "insertion normale acceptée");
+  assert.equal((await a.from("catalog_items").insert({ event_id: E, kind: "drink", name: "Eau", id: "11111111-1111-4111-8111-111111111111" })).error?.code, "42501");
+});
+
+test("photos : nombre de fichiers plafonné par événement", async () => {
+  const jpg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1]);
+  const errs = [];
+  for (let i = 0; i < 9; i++) errs.push((await S.putPhoto(ctxOf(A), `${E}/33333333-3333-4333-8333-${String(i).padStart(12, "0")}.jpg`, E, jpg, "image/jpeg")).error?.code ?? null);
+  assert.equal(errs.filter((x) => x === null).length, 7, "8 fichiers au plus (1 déjà présent)");
+  assert.equal(errs.at(-1), "23514");
 });
 
 test("tâches planifiées : exécutées une fois, verrou exclusif", async () => {

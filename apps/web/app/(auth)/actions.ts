@@ -63,7 +63,9 @@ export async function forgot(_: FormState, fd: FormData): Promise<FormState> {
   if (!mailConfigured() && process.env.NODE_ENV === "production") {
     return { message: "La réinitialisation par e-mail n’est pas encore disponible. Contactez l’équipe Skyevenapp." };
   }
-  const uid = await auth.userIdByEmail(email);
+  // 3 e-mails par adresse et par heure : au-delà, même réponse, rien n'est envoyé (bombardement de boîte, quota d'envoi)
+  const allowed = await auth.allowAttempt("forgot", email, 3, 60);
+  const uid = allowed ? await auth.userIdByEmail(email) : null;
   if (uid) {
     const token = await auth.createOneTimeToken(uid, "recovery", 60);
     await sendMail({

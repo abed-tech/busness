@@ -62,7 +62,10 @@ export async function optionalApiCtx(req: Request): Promise<Ctx | Response> {
 /** Traduit une erreur de la base en réponse HTTP. */
 export function dbErrorResponse(e: { code?: string; message?: string }): Response {
   const status = e.code === "42501" ? 403 : e.code === "22023" || e.code === "23514" || e.code === "22P02" || e.code === "23502" ? 400 : e.code === "P0002" ? 404 : e.code === "23505" ? 409 : e.code === "PGRST116" ? 404 : e.code === "NETWORK" ? 503 : 400;
-  const message = status === 503 ? "Base de données indisponible. Réessayez." : e.message || "Opération refusée.";
+  // seuls les messages rédigés dans les fonctions de la base sont renvoyés ; les autres (noms de colonnes,
+  // contraintes, syntaxe) restent côté serveur
+  const curated = ["42501", "22023", "23514", "P0002", "28000"].includes(e.code || "");
+  const message = status === 503 ? "Base de données indisponible. Réessayez." : status === 409 ? "Cet élément existe déjà." : curated && e.message ? e.message : "Opération refusée.";
   return apiError(status, e.code || "error", message);
 }
 

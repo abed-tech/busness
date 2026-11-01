@@ -54,6 +54,30 @@ export async function checkPassword(email: string, password: string, opts: { thr
   });
 }
 
+/**
+ * Adresse IP du client derrière le proxy de l'hébergeur. Les en-têtes posés par le réseau de Cloudflare (devant Render)
+ * sont réécrits à chaque requête ; le premier élément de X-Forwarded-For, lui, peut être choisi par le client :
+ * il ne sert qu'en dernier recours (développement local).
+ */
+export function clientIp(h: { get(name: string): string | null }): string {
+  const ip = h.get("cf-connecting-ip") || h.get("true-client-ip") || (h.get("x-forwarded-for") || "").split(",")[0];
+  return ip.trim().slice(0, 64);
+}
+
+/**
+ * Limite générique (même table que les échecs de connexion, sujet haché) : enregistre la demande et renvoie
+ * false au-delà de `max` demandes dans la fenêtre. Sert aux envois d'e-mails (mot de passe oublié).
+ */
+export async function allowAttempt(kind: string, subject: string, max: number, windowMinutes: number): Promise<boolean> {
+  const h = sha(`${kind}:${subject.trim().toLowerCase()}`);
+  return asOwner(async (q) => {
+    const t = await q.query("select count(*)::int as n from auth.failed_logins where email_hash = $1 and at > now() - make_interval(mins => $2)", [h, windowMinutes]);
+    if (t.rows[0].n >= max) return false;
+    await q.query("insert into auth.failed_logins (email_hash) values ($1)", [h]);
+    return true;
+  });
+}
+
 export async function createSession(userId: string, app: App, meta: { ip?: string; userAgent?: string } = {}): Promise<{ token: string; expiresAt: Date }> {
   const token = newToken();
   const expiresAt = new Date(Date.now() + TTL_HOURS[app] * 3600_000);
@@ -144,14 +168,33 @@ export async function enrollFactor(userId: string, email: string): Promise<{ fac
     return { factorId: r.rows[0].id as string, secret, uri: otpauthUri(secret, email) };
   });
 }
-/** Vérifie le code ; en cas de succès, le facteur devient vérifié et la session passe au niveau aal2. */
+// Second facteur : 5 codes faux en 15 minutes bloquent la vérification (un code à 6 chiffres se devine sinon en quelques heures).
+const MFA_MAX_FAILURES = 5;
+const mfaKey = (userId: string) => sha("mfa:" + userId);
+
+/** Vrai si le second facteur de ce compte est momentanément bloqué après trop de codes faux. */
+export async function mfaLocked(userId: string): Promise<boolean> {
+  const r = await asOwner((q) => q.query("select count(*)::int as n from auth.failed_logins where email_hash = $1 and at > now() - interval '15 minutes'", [mfaKey(userId)]));
+  return r.rows[0].n >= MFA_MAX_FAILURES;
+}
+
+/**
+ * Vérifie le code ; en cas de succès, le facteur devient vérifié et la session passe au niveau aal2.
+ * Refusé sans vérification après MFA_MAX_FAILURES échecs en 15 minutes (le verrou de la ligne sérialise les essais simultanés).
+ */
 export async function verifyFactor(userId: string, factorId: string, code: string, sessionId: string): Promise<boolean> {
   return asOwner(async (q) => {
     const r = await q.query("select secret, last_used_step from auth.mfa_factors where id = $1 and user_id = $2 for update", [factorId, userId]);
     const f = r.rows[0];
     if (!f) return false;
+    const t = await q.query("select count(*)::int as n from auth.failed_logins where email_hash = $1 and at > now() - interval '15 minutes'", [mfaKey(userId)]);
+    if (t.rows[0].n >= MFA_MAX_FAILURES) return false;
     const step = verifyTotp(f.secret, code, f.last_used_step == null ? null : Number(f.last_used_step));
-    if (step == null) return false;
+    if (step == null) {
+      await q.query("insert into auth.failed_logins (email_hash) values ($1)", [mfaKey(userId)]);
+      return false;
+    }
+    await q.query("delete from auth.failed_logins where email_hash = $1", [mfaKey(userId)]);
     await q.query("update auth.mfa_factors set status = 'verified', last_used_step = $2 where id = $1", [factorId, step]);
     await q.query("update auth.sessions set aal = 'aal2' where id = $1 and user_id = $2", [sessionId, userId]);
     return true;

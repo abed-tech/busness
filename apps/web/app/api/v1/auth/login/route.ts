@@ -14,6 +14,6 @@ export async function POST(req: Request) {
   if (!r.ok) return r.error === "rate_limited" ? apiError(429, "rate_limited", "Trop de tentatives. Patientez quelques minutes.") : apiError(401, "invalid_credentials", "E-mail ou mot de passe incorrect.");
   if (!r.confirmed) return apiError(403, "email_not_confirmed", "Confirmez d’abord votre adresse e-mail.");
   if (await isAdminAccount(r.userId)) return apiError(403, "forbidden", "Ce compte ne peut pas se connecter ici.");
-  const s = await auth.createSession(r.userId, "org", { ip: (req.headers.get("x-forwarded-for") || "").split(",")[0].trim(), userAgent: req.headers.get("user-agent") || "api" });
+  const s = await auth.createSession(r.userId, "org", { ip: auth.clientIp(req.headers), userAgent: req.headers.get("user-agent") || "api" });
   return json({ token: s.token, expires_at: s.expiresAt.toISOString(), user: { id: r.userId, email: email.toLowerCase() } }, 201);
 }

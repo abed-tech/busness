@@ -83,7 +83,11 @@ export default async function EventHome({ params, searchParams }: { params: Prom
               {b.pending_cents > 0 && <p className="hint">Un paiement de {money(b.pending_cents, b.currency)} attend la confirmation du prestataire.</p>}
               {b.remaining_cents > 0 && ev.owner_id === me.id && write && (
                 <div className="row">
-                  {pm.mobile_money && <ActionForm action={startPayment} hidden={{ event_id: id, method: "mobile_money" }} submit={`Payer ${money(b.remaining_cents, b.currency)} par mobile money`} />}
+                  {pm.mobile_money && (
+                    <ActionForm action={startPayment} hidden={{ event_id: id, method: "mobile_money" }} submit={`Payer ${money(b.remaining_cents, b.currency)} par mobile money`}>
+                      {pm.mobileProvider === "wonyapay" && <div className="fld"><label htmlFor="pay-phone">Numéro mobile money (RDC)</label><input id="pay-phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="0991234567" maxLength={16} required /></div>}
+                    </ActionForm>
+                  )}
                   {pm.card && <ActionForm action={startPayment} hidden={{ event_id: id, method: "card" }} submit="Payer par carte bancaire" />}
                   {!pm.card && !pm.mobile_money && <p className="notice">Le paiement en ligne n’est pas encore configuré sur la plateforme.</p>}
                 </div>

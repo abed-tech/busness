@@ -1,13 +1,15 @@
 import { dataClient } from "@ceremonia/server";
 import { requireApiOrganizer, apiError, json, dbErrorResponse, UUID } from "@/lib/api";
-import { paymentMethods, stripeCheckout, cinetpayCheckout } from "@/lib/payments";
+import { paymentMethods, stripeCheckout, cinetpayCheckout, wonyapayCollect, wonyaMessage, rdcPhone, WonyaError } from "@/lib/payments";
+import { attachWonyaId } from "@/lib/webhooks/wonyapay";
 import { origin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 /**
- * POST /api/v1/events/{id}/checkout   corps : { "method": "card" | "mobile_money" }
+ * POST /api/v1/events/{id}/checkout   corps : { "method": "card" | "mobile_money", "phone"?: "0XXXXXXXXX" }
  * Démarre le règlement d'un événement et renvoie l'adresse de la page de paiement du prestataire.
+ * Mobile money par Wonya Pay : « phone » obligatoire, payment_url vaut null (demande envoyée sur le téléphone).
  * Le montant est calculé par la base (create_checkout) ; le paiement n'est confirmé que par le webhook signé.
  */
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -15,19 +17,31 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (me instanceof Response) return me;
   const { id } = await ctx.params;
   if (!UUID.test(id)) return apiError(400, "bad_request", "Identifiant d’événement invalide.");
-  let body: { method?: unknown };
+  let body: { method?: unknown; phone?: unknown };
   try { body = await req.json(); } catch { return apiError(400, "bad_request", "Corps JSON attendu."); }
   const method = body.method;
   if (method !== "card" && method !== "mobile_money") return apiError(400, "bad_request", "« method » doit valoir « card » ou « mobile_money ».");
   const m = paymentMethods();
   if (!m[method] || m.devLocal) return apiError(503, "payment_unavailable", "Ce moyen de paiement n’est pas encore configuré sur la plateforme.");
+  const provider = method === "card" ? "stripe" : m.mobileProvider;
+  const phone = provider === "wonyapay" ? rdcPhone(String(body.phone ?? "")) : null;
+  if (provider === "wonyapay" && !phone) return apiError(400, "bad_request", "« phone » : numéro mobile money de RDC attendu (0XXXXXXXXX ou +243XXXXXXXXX).");
 
   const db = dataClient(me.ctx);
   const r = await db.rpc<{ ok: boolean; error?: string; reference: string; amount_cents: number; currency: string }>("create_checkout", {
-    p_event: id, p_method: method, p_provider: method === "card" ? "stripe" : "cinetpay",
+    p_event: id, p_method: method, p_provider: provider,
   });
   if (r.error) return dbErrorResponse(r.error);
   if (!r.data.ok) return apiError(409, "nothing_due", r.data.error || "Rien à régler.");
+  if (provider === "wonyapay") {
+    try {
+      await attachWonyaId(r.data.reference, await wonyapayCollect({ reference: r.data.reference, amountCents: r.data.amount_cents, currency: r.data.currency, phone: phone! }));
+      return json({ reference: r.data.reference, amount_cents: r.data.amount_cents, currency: r.data.currency, payment_url: null }, 201);
+    } catch (e) {
+      const badPhone = e instanceof WonyaError && e.code === "invalid_payment";
+      return apiError(badPhone ? 422 : 502, badPhone ? "invalid_phone" : "provider_unavailable", wonyaMessage(e));
+    }
+  }
   const { data: ev } = await db.from("events").select("title").eq("id", id).maybeSingle();
   const ret = `${origin()}/events/${id}/pay/return?ref=${r.data.reference}`;
   try {

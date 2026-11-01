@@ -3,7 +3,7 @@ import { rpc, SERVICE } from "@ceremonia/server";
 
 /** Enregistre une notification vérifiée dans la base (rôle serveur, fonction apply_payment_event : idempotente, montant revérifié). */
 export async function applyPaymentEvent(args: {
-  provider: "stripe" | "cinetpay"; providerEventId: string; reference: string;
+  provider: "stripe" | "cinetpay" | "wonyapay"; providerEventId: string; reference: string;
   status: "succeeded" | "failed" | "refunded"; providerRef: string | null; amountCents: number | null; payload: unknown;
 }): Promise<{ ok: boolean; error?: string; duplicate?: boolean }> {
   const r = await rpc<{ ok: boolean; error?: string; duplicate?: boolean }>(SERVICE, "apply_payment_event", {

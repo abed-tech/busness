@@ -81,7 +81,9 @@ Un compte organisateur ne peut jamais devenir administrateur, et inversement (te
   doublon) ; `complete_simulated_payment` vérifie le propriétaire, l'état et le montant recalculé, verrouille la ligne et
   est rejouable sans effet. Toute transaction qui passe à « réussie » active le brouillon (`transactions_activate_draft`),
   y compris un futur paiement réel confirmé par webhook. Le paiement simulé se désactive par le paramètre
-  `payment_simulation` (table `settings`).
+  `payment_simulation` (table `settings`) et, **en production, il est refusé par l'application sauf `PAYMENT_SIMULATION=1`**
+  (sinon tout organisateur activerait ses événements sans payer) : l'aperçu propose alors la carte (Stripe) ou le mobile
+  money (CinetPay) configurés, et l'événement s'active à la confirmation signée du prestataire.
 - Brouillons abandonnés : effacés après 30 jours sans activité (tâche planifiée `purge_stale_drafts`).
 - Suppression d'un événement (organisateur, administration, règle de conservation) : `private.purge_event` inscrit d'abord
   dans `event_history` le nom, le nombre d'invités et le montant réglé, une seule fois par événement ; consultable dans

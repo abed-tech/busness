@@ -90,6 +90,27 @@ test("aperçu : vraie invitation sans interface de gestion, barre « Générer m
   assert.equal((await W.loadEvent(EV)).status, "draft", "l'aperçu ne crée rien");
 });
 
+test("paiement simulé : refusé en production sans PAYMENT_SIMULATION=1 (aucune transaction, aucune activation)", async () => {
+  const env = { NODE_ENV: process.env.NODE_ENV, PAYMENT_SIMULATION: process.env.PAYMENT_SIMULATION };
+  process.env.NODE_ENV = "production"; delete process.env.PAYMENT_SIMULATION;
+  try {
+    const before = await S.asOwner((q) => q.query("select count(*)::int as n from public.transactions where event_id = $1", [EV]));
+    const s = await redirected(W.pay.startSimulatedPayment(null, fdOf({ event_id: EV })));
+    assert.equal(s.url, undefined, "aucune redirection vers le paiement simulé"); assert.match(s.value.message, /simulé n’est pas disponible/);
+    const c = await redirected(W.pay.completeSimulatedPayment(null, fdOf({ event_id: EV, ref: "CRM-AAAAAAAAAA", outcome: "succeeded" })));
+    assert.match(c.value.message, /simulé n’est pas disponible/);
+    const after = await S.asOwner((q) => q.query("select count(*)::int as n from public.transactions where event_id = $1", [EV]));
+    assert.equal(after.rows[0].n, before.rows[0].n, "aucune transaction créée");
+    assert.equal((await W.loadEvent(EV)).status, "draft", "brouillon toujours non payé");
+    // l'aperçu propose les vrais moyens de paiement (aucun configuré ici : message explicite)
+    const pv = texts(await render(W.eventPreviewPage({ params: Promise.resolve({ id: EV }) })));
+    assert.ok(pv.some((t) => /paiement en ligne n’est pas encore disponible/.test(t)), "aperçu : paiement réel proposé");
+  } finally {
+    process.env.NODE_ENV = env.NODE_ENV;
+    if (env.PAYMENT_SIMULATION === undefined) delete process.env.PAYMENT_SIMULATION; else process.env.PAYMENT_SIMULATION = env.PAYMENT_SIMULATION;
+  }
+});
+
 test("paiement simulé : récapitulatif, échec, annulation, réussite unique → événement créé", async () => {
   const start = async () => new URL((await redirected(W.pay.startSimulatedPayment(null, fdOf({ event_id: EV })))).url, "http://x").searchParams.get("ref");
   const ref1 = await start(); assert.match(ref1, /^CRM-/);

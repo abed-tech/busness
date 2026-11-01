@@ -3,7 +3,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireOrganizer, rpc, origin } from "@/lib/auth";
 import { serverClient } from "@/lib/data/server";
-import { paymentMethods, stripeCheckout, cinetpayCheckout } from "@/lib/payments";
+import { paymentMethods, simulationAllowed, stripeCheckout, cinetpayCheckout, wonyapayCollect, wonyaMessage, rdcPhone } from "@/lib/payments";
+import { attachWonyaId } from "@/lib/webhooks/wonyapay";
 import type { ActionState } from "@/components/ConfirmAction";
 
 /**
@@ -17,13 +18,25 @@ export async function startPayment(_: ActionState, fd: FormData): Promise<Action
   const m = paymentMethods();
   if (method !== "card" && method !== "mobile_money") return { ok: false, message: "Moyen de paiement invalide." };
   if (!m[method]) return { ok: false, message: "Ce moyen de paiement n’est pas encore configuré sur la plateforme." };
+  const provider = method === "card" ? "stripe" : m.mobileProvider;
+  const phone = provider === "wonyapay" ? rdcPhone(String(fd.get("phone") || "")) : null;
+  if (provider === "wonyapay" && !phone) return { ok: false, message: "Indiquez votre numéro mobile money de RDC : 0XXXXXXXXX ou +243XXXXXXXXX." };
   const r = await rpc<{ ok: boolean; error?: string; reference: string; amount_cents: number; currency: string }>("create_checkout", {
-    p_event: id, p_method: method, p_provider: method === "card" ? "stripe" : "cinetpay",
+    p_event: id, p_method: method, p_provider: provider,
   });
   if (!r.ok) return { ok: false, message: r.message };
   if (!r.data.ok) return { ok: false, message: r.data.error || "Rien à régler." };
   const ret = `${origin()}/events/${id}/pay/return?ref=${r.data.reference}`;
   if (m.devLocal) redirect(ret + "&dev=1"); // test local : confirmation simulée par la commande documentée (jamais en production)
+  if (provider === "wonyapay") {
+    // pas de page hébergée : la demande arrive sur le téléphone, la page de retour suit la confirmation
+    try {
+      await attachWonyaId(r.data.reference, await wonyapayCollect({ reference: r.data.reference, amountCents: r.data.amount_cents, currency: r.data.currency, phone: phone! }));
+    } catch (e) {
+      return { ok: false, message: wonyaMessage(e) };
+    }
+    redirect(ret);
+  }
   const sb = await serverClient();
   const { data: ev } = await sb.from("events").select("title").eq("id", id).single();
   let url: string;
@@ -44,8 +57,11 @@ const UUID = /^[0-9a-f-]{36}$/;
  * Le montant et le récapitulatif sont calculés par la base (start_simulated_checkout) ; un paiement en attente
  * au même montant est repris, ce qui protège des clics multiples et des actualisations.
  */
+const SIMULATION_OFF = "Le paiement simulé n’est pas disponible : réglez par carte bancaire ou mobile money.";
+
 export async function startSimulatedPayment(_: ActionState, fd: FormData): Promise<ActionState> {
   await requireOrganizer();
+  if (!simulationAllowed()) return { ok: false, message: SIMULATION_OFF };
   const id = String(fd.get("event_id"));
   if (!UUID.test(id)) return { ok: false, message: "Événement introuvable." };
   const r = await rpc<{ ok: boolean; reference?: string; already_active?: boolean }>("start_simulated_checkout", { p_event: id });
@@ -61,6 +77,7 @@ export async function startSimulatedPayment(_: ActionState, fd: FormData): Promi
  */
 export async function completeSimulatedPayment(_: ActionState, fd: FormData): Promise<ActionState> {
   await requireOrganizer();
+  if (!simulationAllowed()) return { ok: false, message: SIMULATION_OFF };
   const id = String(fd.get("event_id")), ref = String(fd.get("ref") || ""), outcome = String(fd.get("outcome") || "");
   if (!UUID.test(id) || !/^[A-Z0-9-]{4,40}$/.test(ref)) return { ok: false, message: "Paiement introuvable." };
   if (!["succeeded", "failed", "cancelled"].includes(outcome)) return { ok: false, message: "Choix de paiement invalide." };

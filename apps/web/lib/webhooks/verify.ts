@@ -3,10 +3,17 @@
 
 const enc = new TextEncoder();
 
-async function hmacHex(secret: string, data: string): Promise<string> {
+async function hmac(secret: string, data: string): Promise<Uint8Array> {
   const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  const sig = new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode(data)));
-  return Array.from(sig, (b) => b.toString(16).padStart(2, "0")).join("");
+  return new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode(data)));
+}
+
+async function hmacHex(secret: string, data: string): Promise<string> {
+  return Array.from(await hmac(secret, data), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function hmacBase64(secret: string, data: string): Promise<string> {
+  return btoa(String.fromCharCode(...(await hmac(secret, data))));
 }
 
 /** Comparaison en temps constant. */
@@ -77,7 +84,29 @@ export function cinetpayOutcome(check: { code?: string; data?: { status?: string
   return null; // en attente : rien à faire
 }
 
-/** CinetPay exprime les montants en unités de la devise ; Skyevenapp stocke des centièmes. */
+/** Texte signé par Wonya : horodatage et corps brut (séparateur à confirmer avec l'événement webhook.test). */
+export const wonyaSignedText = (timestamp: string, rawBody: string) => `${timestamp}.${rawBody}`;
+
+/**
+ * En-têtes Wonya : X-Wonya-Timestamp (secondes) et X-Wonya-Signature « sha256=<base64> ».
+ * Signature = HMAC-SHA256(secret du projet, wonyaSignedText). Rejette les notifications de plus de `toleranceSec`.
+ */
+export async function verifyWonya(rawBody: string, timestamp: string | null, header: string | null, secret: string, nowSec = Math.floor(Date.now() / 1000), toleranceSec = 300): Promise<boolean> {
+  if (!timestamp || !header || !secret || !/^\d+$/.test(timestamp) || !header.startsWith("sha256=")) return false;
+  if (Math.abs(nowSec - Number(timestamp)) > toleranceSec) return false;
+  return safeEqual(header.slice(7), await hmacBase64(secret, wonyaSignedText(timestamp, rawBody)));
+}
+
+/** Statut Skyevenapp déduit de GET /v1/payments/{id} : seuls successful et failed sont définitifs. */
+export function wonyaOutcome(p: { kind?: string; status?: string; amount?: number | string } | null):
+  null | { status: "succeeded" | "failed"; amountMinor: number | null } {
+  if (!p || p.kind !== "collection") return null; // décaissement B2C : jamais une recette
+  if (p.status === "successful") return { status: "succeeded", amountMinor: p.amount != null ? Number(p.amount) : null };
+  if (p.status === "failed") return { status: "failed", amountMinor: null };
+  return null; // pending (55 s au plus) ou statut non traité
+}
+
+/** CinetPay et Wonya expriment les montants en unités de la devise ; Skyevenapp stocke des centièmes. */
 export function toCents(amount: number): number {
   return Math.round(amount * 100);
 }

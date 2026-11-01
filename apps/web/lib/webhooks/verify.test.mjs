@@ -40,3 +40,22 @@ test("CinetPay : jeton HMAC et lecture du statut vérifié", async () => {
   assert.equal(V.cinetpayOutcome({ data: { status: "REFUSED" } }).status, "failed");
   assert.equal(V.toCents(5), 500);
 });
+test("Wonya : signature HMAC base64 et horodatage", async () => {
+  const now = 1_785_888_944, raw = JSON.stringify({ event: "payment.successful", data: { id: "854877170571", reference: "CRM-ABCDEFGHJK" } });
+  const sig = (t, b = raw, s = "wsec") => "sha256=" + createHmac("sha256", s).update(V.wonyaSignedText(String(t), b)).digest("base64");
+  assert.equal(await V.verifyWonya(raw, String(now), sig(now), "wsec", now), true);
+  assert.equal(await V.verifyWonya(raw.replace("CRM", "XRM"), String(now), sig(now), "wsec", now), false, "corps modifié");
+  assert.equal(await V.verifyWonya(raw, String(now), sig(now, raw, "autre"), "wsec", now), false, "mauvais secret");
+  assert.equal(await V.verifyWonya(raw, String(now - 301), sig(now - 301), "wsec", now), false, "trop ancien");
+  assert.equal(await V.verifyWonya(raw, String(now + 1), sig(now), "wsec", now), false, "horodatage remplacé");
+  assert.equal(await V.verifyWonya(raw, String(now), sig(now).slice(7), "wsec", now), false, "préfixe sha256= absent");
+  assert.equal(await V.verifyWonya(raw, null, sig(now), "wsec", now), false);
+  assert.equal(await V.verifyWonya(raw, String(now), sig(now, raw, ""), "", now), false, "secret non configuré");
+});
+test("Wonya : statut relu auprès de l'API", () => {
+  assert.deepEqual(V.wonyaOutcome({ kind: "collection", status: "successful", amount: 5 }), { status: "succeeded", amountMinor: 5 });
+  assert.deepEqual(V.wonyaOutcome({ kind: "collection", status: "failed", amount: 5 }), { status: "failed", amountMinor: null });
+  assert.equal(V.wonyaOutcome({ kind: "collection", status: "pending", amount: 5 }), null);
+  assert.equal(V.wonyaOutcome({ kind: "payout", status: "successful", amount: 5 }), null, "décaissement ignoré");
+  assert.equal(V.wonyaOutcome(null), null);
+});

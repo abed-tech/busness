@@ -54,6 +54,14 @@ services:
         sync: false
       - key: CINETPAY_SECRET_KEY
         sync: false
+      - key: WONYAPAY_TOKEN         # facultatif : mobile money RDC, prioritaire sur CinetPay
+        sync: false
+      - key: WONYAPAY_WEBHOOK_SECRET  # callback : <ORGANIZER_ORIGIN>/api/webhooks/wonyapay
+        sync: false
+      # Paiement simulé (aucun argent encaissé) : refusé en production sauf PAYMENT_SIMULATION=1.
+      # Ne le définir que pour une démonstration : tout organisateur pourrait activer ses événements sans payer.
+      - key: PAYMENT_SIMULATION
+        sync: false
 
   - type: web
     name: cer-console-tmj4sb22

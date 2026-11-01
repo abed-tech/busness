@@ -116,6 +116,15 @@ export async function updateSettings(_: ActionState, fd: FormData): Promise<Acti
 
 const PHOTO_TYPES: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
 
+/** Type réel d'après la signature complète du fichier (JPEG FF D8 FF, PNG 89 50 4E 47 0D 0A 1A 0A, WebP RIFF….WEBP). */
+function photoType(h: Uint8Array): string {
+  const at = (i: number, bytes: number[]) => bytes.every((b, k) => h[i + k] === b);
+  if (at(0, [0xff, 0xd8, 0xff])) return "image/jpeg";
+  if (at(0, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return "image/png";
+  if (at(0, [0x52, 0x49, 0x46, 0x46]) && at(8, [0x57, 0x45, 0x42, 0x50])) return "image/webp";
+  return "";
+}
+
 /** Photos : 4 au maximum, 6 Mo chacune, JPEG/PNG/WebP. Le contenu est vérifié (signature du fichier), pas seulement l'extension. */
 export async function uploadPhotos(_: ActionState, fd: FormData): Promise<ActionState> {
   await requireOrganizer();
@@ -130,7 +139,7 @@ export async function uploadPhotos(_: ActionState, fd: FormData): Promise<Action
   for (const f of files) {
     if (f.size > 6 * 1024 * 1024) return fail(`« ${f.name} » dépasse 6 Mo. Choisissez une photo plus légère.`);
     const head = new Uint8Array(await f.slice(0, 12).arrayBuffer());
-    const type = head[0] === 0xff && head[1] === 0xd8 ? "image/jpeg" : head[0] === 0x89 && head[1] === 0x50 ? "image/png" : head[8] === 0x57 && head[9] === 0x45 ? "image/webp" : "";
+    const type = photoType(head);
     if (!type) return fail(`« ${f.name} » n’est pas une photo JPEG, PNG ou WebP. (Les photos HEIC de l’iPhone doivent être converties : partagez-la en « Plus compatible ».)`);
     const path = `${id}/${crypto.randomUUID()}.${PHOTO_TYPES[type]}`;
     const { error } = await putPhoto(sb.ctx, path, id, Buffer.from(await f.arrayBuffer()), type);

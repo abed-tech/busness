@@ -24,6 +24,6 @@ export async function verify(_: MfaState, fd: FormData): Promise<MfaState> {
   if (!/^\d{6}$/.test(code)) return { message: "Saisissez les 6 chiffres affichés par votre application." };
   if (!/^[0-9a-f-]{36}$/i.test(factorId)) return { message: "Vérification impossible. Réessayez." };
   const ok = await auth.verifyFactor(s.userId, factorId, code, s.sessionId);
-  if (!ok) return { message: "Code incorrect ou expiré." };
+  if (!ok) return { message: (await auth.mfaLocked(s.userId)) ? "Trop de codes incorrects. Réessayez dans 15 minutes." : "Code incorrect ou expiré." };
   redirect("/");
 }

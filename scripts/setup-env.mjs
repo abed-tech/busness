@@ -15,6 +15,8 @@ STRIPE_WEBHOOK_SECRET=
 CINETPAY_API_KEY=
 CINETPAY_SITE_ID=
 CINETPAY_SECRET_KEY=
+WONYAPAY_TOKEN=
+WONYAPAY_WEBHOOK_SECRET=
 # E-mails : en local, les liens (confirmation, mot de passe oublié) s'affichent dans le terminal
 RESEND_API_KEY=
 MAIL_FROM=

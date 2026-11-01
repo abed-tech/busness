@@ -48,6 +48,7 @@ puis lance l'application. Aucune commande de base n'est à taper.
 | `RESEND_API_KEY`, `MAIL_FROM` | facultatif | ✘ | oui / non | e-mails (confirmation d'inscription, mot de passe oublié) |
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | facultatif | ✘ | oui | carte bancaire |
 | `CINETPAY_API_KEY`, `CINETPAY_SITE_ID`, `CINETPAY_SECRET_KEY` | facultatif | ✘ | oui | mobile money |
+| `WONYAPAY_TOKEN`, `WONYAPAY_WEBHOOK_SECRET` | facultatif | ✘ | oui | mobile money RDC (prioritaire sur CinetPay) |
 | `ADMIN_IDLE_MINUTES` | ✘ | ✔ (30) | non | déjà dans render.yaml |
 | `DISABLE_SCHEDULER` | ✘ | ✔ (1) | non | les tâches planifiées tournent dans ceremonia-app |
 | `NODE_VERSION` (22), `NEXT_TELEMETRY_DISABLED` (1) | ✔ | ✔ | non | déjà dans render.yaml |
@@ -88,6 +89,11 @@ depuis **Paramètres → Administrateurs**. Une adresse déjà utilisée par un 
   dans `STRIPE_SECRET_KEY`.
 - **CinetPay** : `CINETPAY_API_KEY`, `CINETPAY_SITE_ID`, `CINETPAY_SECRET_KEY` ; l'URL de notification
   (`https://<ceremonia-app>/api/webhooks/cinetpay`) est envoyée automatiquement à chaque paiement.
+- **Wonya Pay** (RDC, CDF ou USD) : token du projet (`wya_live_…`) dans `WONYAPAY_TOKEN` ; dans les paramètres du projet
+  Wonya, URL du callback `https://<ceremonia-app>/api/webhooks/wonyapay`, puis copiez le secret de signature dans
+  `WONYAPAY_WEBHOOK_SECRET`. Redéployez, puis envoyez le POST de test depuis Wonya : il doit répondre 200
+  (400 « signature » = secret ou format de signature à vérifier). Renseigné, Wonya remplace CinetPay pour le mobile money
+  et l'organisateur saisit son numéro avant de payer.
 - Faites un paiement test en mode sandbox avant l'ouverture : ces webhooks n'ont jamais été testés contre les vrais prestataires.
 
 ## 5. Mises à jour et sauvegardes
