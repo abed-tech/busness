@@ -7,7 +7,7 @@ import { createHmac } from "node:crypto"; import fs from "node:fs"; import path 
 const require = createRequire(import.meta.url);
 if (!process.env.DATABASE_URL) { console.log("DATABASE_URL absente : tests ignorés"); process.exit(0); }
 process.env.ORGANIZER_ORIGIN ||= "http://localhost:3000"; process.env.ADMIN_ORIGIN ||= "http://127.0.0.1:3100";
-process.env.DEV_PAYMENTS = "1"; process.env.STRIPE_WEBHOOK_SECRET = "whsec_integration"; process.env.DISABLE_SCHEDULER = "1";
+process.env.DEV_PAYMENTS = "1"; process.env.SIGNUP_EMAIL_CONFIRMATION = "1"; // parcours avec confirmation (désactivée par défaut) process.env.STRIPE_WEBHOOK_SECRET = "whsec_integration"; process.env.DISABLE_SCHEDULER = "1";
 const W = require("./.web.cjs"), A = require("./.admin.cjs");
 const S = W.server;
 const here = path.dirname(fileURLToPath(import.meta.url));

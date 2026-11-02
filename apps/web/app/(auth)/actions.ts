@@ -34,14 +34,14 @@ const SignupSchema = z.object({
 });
 
 /**
- * Inscription. Avec un service d'e-mail configuré (ou en local), l'adresse doit être confirmée par un lien.
- * Sans service d'e-mail en production, le compte est ouvert immédiatement (l'adresse n'est pas vérifiée).
+ * Inscription : le compte est ouvert immédiatement, sans e-mail (les e-mails servent uniquement au mot de passe
+ * oublié). Confirmation de l'adresse par un lien seulement si SIGNUP_EMAIL_CONFIRMATION=1 et l'envoi est configuré.
  */
 export async function signup(_: FormState, fd: FormData): Promise<FormState> {
   const p = SignupSchema.safeParse(Object.fromEntries(fd));
   if (!p.success) return { message: p.error.issues[0]?.message };
   if (fd.get("password") !== fd.get("password2")) return { message: "Les deux mots de passe ne correspondent pas." };
-  const verify = mailConfigured() || process.env.NODE_ENV !== "production";
+  const verify = process.env.SIGNUP_EMAIL_CONFIRMATION === "1" && (mailConfigured() || process.env.NODE_ENV !== "production");
   const r = await auth.createUser(p.data.email, p.data.password, !verify, { username: p.data.username, phone: p.data.phone });
   if (!r.ok) return { message: "Un compte existe déjà avec cet e-mail." };
   if (!verify) {

@@ -45,7 +45,7 @@ puis lance l'application. Aucune commande de base n'est à taper.
 | `DATABASE_URL` | ✔ | ✔ | oui | **reliée automatiquement** à `ceremonia-db` (URL interne) |
 | `ORGANIZER_ORIGIN` | ✔ | ✔ | non | URL de ceremonia-app |
 | `ADMIN_ORIGIN` | ✔ | ✔ | non | URL du service admin (domaine différent) |
-| `RESEND_API_KEY`, `MAIL_FROM` | facultatif | ✘ | oui / non | e-mails (confirmation d'inscription, mot de passe oublié) |
+| `RESEND_API_KEY`, `MAIL_FROM` | facultatif | ✘ | oui / non | e-mail de réinitialisation du mot de passe (seul e-mail envoyé) |
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | facultatif | ✘ | oui | carte bancaire |
 | `CINETPAY_API_KEY`, `CINETPAY_SITE_ID`, `CINETPAY_SECRET_KEY` | facultatif | ✘ | oui | mobile money |
 | `WONYAPAY_TOKEN`, `WONYAPAY_WEBHOOK_SECRET` | facultatif | ✘ | oui | mobile money RDC (prioritaire sur CinetPay) |
@@ -53,8 +53,8 @@ puis lance l'application. Aucune commande de base n'est à taper.
 | `DISABLE_SCHEDULER` | ✘ | ✔ (1) | non | les tâches planifiées tournent dans ceremonia-app |
 | `NODE_VERSION` (22), `NEXT_TELEMETRY_DISABLED` (1) | ✔ | ✔ | non | déjà dans render.yaml |
 
-Sans `RESEND_API_KEY` : les comptes organisateurs sont ouverts sans vérifier l'adresse, et « mot de passe oublié »
-affiche qu'il n'est pas encore disponible. Ne définissez jamais `DEV_PAYMENTS` en ligne (ignorée de toute façon).
+Les comptes organisateurs sont ouverts à l'inscription sans e-mail de confirmation (sauf `SIGNUP_EMAIL_CONFIRMATION=1`).
+Sans `RESEND_API_KEY` : « mot de passe oublié » affiche qu'il n'est pas encore disponible. Ne définissez jamais `DEV_PAYMENTS` en ligne (ignorée de toute façon).
 
 ## 2. Premier administrateur (une seule fois)
 

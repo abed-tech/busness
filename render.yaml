@@ -40,7 +40,7 @@ services:
         sync: false
       - key: ADMIN_ORIGIN           # URL du service admin ci-dessous
         sync: false
-      - key: RESEND_API_KEY         # facultatif : e-mails de confirmation et de mot de passe oublié
+      - key: RESEND_API_KEY         # facultatif : e-mail de réinitialisation du mot de passe (seul e-mail envoyé)
         sync: false
       - key: MAIL_FROM              # ex. Skyevenapp <no-reply@votre-domaine>
         sync: false
