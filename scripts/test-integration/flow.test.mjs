@@ -116,7 +116,7 @@ test("paiement simulé : récapitulatif, échec, annulation, réussite unique �
   const ref1 = await start(); assert.match(ref1, /^CRM-/);
   assert.equal(await start(), ref1, "double clic : même paiement en attente");
   const tx = await S.asOwner((q) => q.query("select amount_cents, persons, status, provider from public.transactions where reference = $1", [ref1]));
-  assert.deepEqual(tx.rows[0], { amount_cents: 500, persons: 4, status: "pending", provider: "simulation" }, "montant calculé par la base");
+  assert.deepEqual(tx.rows[0], { amount_cents: 2000, persons: 4, status: "pending", provider: "simulation" }, "montant calculé par la base");
   assert.equal((await W.loadEvent(EV)).status, "draft", "« Générer mon invitation » ne crée pas l'événement");
   const page = texts(await render(W.simulatePage({ params: Promise.resolve({ id: EV }), searchParams: Promise.resolve({ ref: ref1 }) })));
   assert.ok(page.includes("Paiement en attente") && page.some((s) => /Simulation/.test(s)), "état et mention de simulation affichés");
@@ -138,12 +138,19 @@ test("paiement simulé : récapitulatif, échec, annulation, réussite unique �
   assert.ok((await S.dataClient(S.ANON).rpc("get_invitation", { p_token: GUESTS[0].invite_token })).data, "lien d'invitation actif");
 });
 
-test("paiement : envoi bloqué avant règlement, webhook Stripe signé, envoi accepté", async () => {
-  // invités supplémentaires après la création : le complément se règle par prestataire (webhook signé)
+test("paiement : prix unique (plus d'invités sans complément), webhook Stripe signé, envoi accepté", async () => {
+  // invités supplémentaires après le paiement : aucun complément, l'envoi reste ouvert
   const up = await W.events.updateSettings(null, fdOf({ event_id: EV, table_capacity: "4", expected: "60", phone_prefix: "+243" }));
   assert.equal(up.ok, true, up.message);
-  const before = await W.send.markSent(EV, [GUESTS[0].id]); assert.equal(before.ok, false); assert.match(before.message, /Réglez/);
-  const p = await redirected(W.pay.startPayment(null, fdOf({ event_id: EV, method: "card" })));
+  const extra = await redirected(W.pay.startPayment(null, fdOf({ event_id: EV, method: "card" })));
+  assert.equal(extra.url, undefined, "aucun second paiement pour le même événement");
+  // second événement du même organisateur : réglé à part, par prestataire (webhook signé)
+  const owner = (await S.asOwner((q) => q.query("select owner_id::text as id from public.events where id = $1", [EV]))).rows[0].id;
+  const ins = await S.dataClient({ role: "authenticated", claims: { sub: owner } }).from("events")
+    .insert({ owner_id: owner, title: "Second " + u, event_date: "2027-07-01", venue: "S", address: "A", expected: 10 }).select("id").single();
+  assert.equal(ins.error, null, JSON.stringify(ins.error));
+  const EV2 = ins.data.id;
+  const p = await redirected(W.pay.startPayment(null, fdOf({ event_id: EV2, method: "card" })));
   const ref = new URL(p.url, "http://x").searchParams.get("ref"); assert.match(ref, /^CRM-/);
   const tx = await S.asOwner((q) => q.query("select amount_cents from public.transactions where reference = $1", [ref]));
   const body = JSON.stringify({ id: "evt_" + u, type: "checkout.session.completed", data: { object: { client_reference_id: ref, payment_status: "paid", amount_total: tx.rows[0].amount_cents, payment_intent: "pi_" + u } } });
@@ -155,6 +162,8 @@ test("paiement : envoi bloqué avant règlement, webhook Stripe signé, envoi ac
   assert.equal(ok.status, 200); assert.equal((await ok.json()).result, "applied");
   const again = await W.stripe.POST(new Request("http://x", { method: "POST", body, headers: { "stripe-signature": sig } }));
   assert.equal((await again.json()).result, "duplicate", "notification rejouée ignorée");
+  assert.equal(tx.rows[0].amount_cents, 2000, "20 $ pour le second événement");
+  assert.equal((await W.loadEvent(EV2)).status, "active", "paiement confirmé par le prestataire : événement créé");
   const sent = await W.send.markSent(EV, GUESTS.map((g) => g.id)); assert.equal(sent.ok, true, sent.message);
 });
 
@@ -243,6 +252,50 @@ test("Mes événements : un autre compte ne voit pas ces événements ; liste vi
   const list = await eventsOnPage();
   assert.equal(list.length, 0, "aucun événement d'un autre compte");
   W.stubs.jar.clear(); W.stubs.jar.set("cer-org", saved);
+});
+
+test("session : actualisation, retour après 10 et 30 minutes, réouverture du navigateur", async () => {
+  const saved = W.stubs.jar.get("cer-org");
+  const sid = (await S.auth.getSession(saved, "org", 30, { touch: false })).sessionId;
+  const away = (min) => S.asOwner((q) => q.query("update auth.sessions set last_seen_at = now() - make_interval(mins => $2) where id = $1", [sid, min]));
+  const H = W.stubs.reqHeaders;
+  const visit = async (url, extra = {}) => {
+    Object.assign(H, { "x-skyevenapp-url": url }, extra);
+    try { return await redirected(W.lib.requireOrganizer()); } finally { for (const k of ["x-skyevenapp-url", ...Object.keys(extra)]) delete H[k]; }
+  };
+  const ping = async (kind, p) => (await (await W.sessionApi.POST(new Request("http://localhost:3000/api/session", { method: "POST", headers: { host: "localhost:3000" }, body: JSON.stringify({ kind, path: p }) }))).json()).action;
+  const guests = `/events/${EV}/guests?q=luc&f=sent`;
+  // actualisation (moins de 10 min) : même page, recherche et filtres compris ; aucune nouvelle session
+  const count = async () => (await S.asOwner((q) => q.query("select count(*)::int n from auth.sessions where user_id = (select user_id from auth.sessions where id = $1)", [sid]))).rows[0].n;
+  const n0 = await count();
+  assert.equal((await visit(guests)).url, undefined);
+  await away(9); assert.equal((await visit(guests)).url, undefined, "9 min : la page reste");
+  assert.equal((await S.auth.getSession(saved, "org", 30, { touch: false })).lastPath, guests, "dernière page gardée par le serveur");
+  assert.equal(await count(), n0, "pas de nouvelle session");
+  // réouverture du navigateur (cookie cer-nav absent) moins de 10 min après : dernière page rouverte
+  await away(5);
+  assert.equal((await visit("/events", { "x-skyevenapp-fresh": "1" })).url, guests);
+  assert.equal((await redirected(W.homePage())).url, "/events", "accueil sans réouverture : Mes événements");
+  // une action (formulaire envoyé) n'est jamais redirigée : la saisie n'est pas perdue
+  await away(15); assert.equal((await visit(guests, { "next-action": "x" })).url, undefined);
+  // un préchargement de lien ne compte pas comme une activité
+  await away(15); assert.equal((await visit(guests, { "next-router-prefetch": "1" })).url, undefined);
+  assert.ok((await S.auth.getSession(saved, "org", 30, { touch: false })).idleSeconds >= 15 * 60);
+  // 10 à moins de 30 min : Mes événements, sans mot de passe
+  assert.equal((await visit(guests)).url, "/events");
+  assert.equal((await visit("/events")).url, undefined, "puis la liste s'affiche normalement");
+  await away(29); assert.equal((await visit("/events", { "x-skyevenapp-fresh": "1" })).url, undefined, "réouverture après 29 min : pas de reprise de page");
+  // page déjà ouverte : le serveur décide (le navigateur ne fournit aucune durée)
+  await away(3); assert.equal(await ping("activity", guests), "stay");
+  await away(12); assert.equal(await ping("activity", guests), "events");
+  assert.equal(await ping("check"), "stay");
+  // 30 min ou plus : session fermée, connexion exigée, puis retour sur Mes événements
+  await away(30);
+  assert.equal(await ping("check"), "login");
+  assert.equal((await visit(guests)).url, "/auth/idle");
+  const idle = await W.idleRoute.GET(new W.stubs.NextRequest("http://localhost:3000/auth/idle"));
+  assert.match(idle.headers.get("location"), /\/login\?e=idle$/); assert.equal(W.stubs.jar.get("cer-org"), undefined, "ancien cookie effacé");
+  assert.equal((await redirected(W.authActions.login(null, fdOf({ email, password: pw })))).url, "/events");
 });
 
 test("Suivi de présence : entrées chargées avec le nom de l'invité", async () => {

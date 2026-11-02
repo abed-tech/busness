@@ -7,7 +7,7 @@ import { photoUrl, draftResume } from "@/lib/event";
 import { ConfirmAction } from "@/components/ConfirmAction";
 import { deleteEvent } from "./actions";
 
-type Row = { id: string; title: string; type: string; event_date: string; venue: string; status: string; billing: string; owner_id: string | null; organizer_id: string | null; photos: string[] };
+type Row = { id: string; title: string; type: string; event_date: string; venue: string; status: string; billing: string; price_cents: number | null; owner_id: string | null; organizer_id: string | null; photos: string[] };
 
 export default async function EventsPage({ searchParams }: { searchParams: Promise<{ pw?: string; deleted?: string }> }) {
   const me = await requireOrganizer();
@@ -15,7 +15,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
   const sb = await serverClient();
   // Colonnes simples uniquement : la couche de données (packages/server/src/data.ts) ne traduit pas les relations
   // imbriquées du type « guests(count) » et refusait toute la requête. Les invitations sont comptées à part.
-  const { data, error } = await sb.from("events").select("id, title, type, event_date, venue, status, billing, owner_id, organizer_id, photos").neq("status", "deleted").order("event_date", { ascending: true });
+  const { data, error } = await sb.from("events").select("id, title, type, event_date, venue, status, billing, price_cents, owner_id, organizer_id, photos").neq("status", "deleted").order("event_date", { ascending: true });
   if (error) console.error("Mes événements : chargement impossible", error);
   // la base filtre déjà (RLS) ; on ne garde en plus que les événements de ce compte, même si une permission globale élargissait la lecture
   const mine = ((data || []) as Row[]).filter((r) => r.owner_id === me.id || r.organizer_id === me.id);
@@ -51,7 +51,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
     <div className="li evrow">
       <Link className="evlink" href={`/events/${e.id}`}>
         <span className="evthumb" aria-hidden="true">{e.photos?.[0] ? <img src={photoUrl(e.photos[0])} alt="" loading="lazy" /> : <i>{(e.title.trim()[0] || "·").toUpperCase()}</i>}</span>
-        <span style={{ flex: 1, minWidth: 0 }}><b>{e.title}</b><small>{TYPE_LABEL[e.type]} · {date(e.event_date)} · {e.venue} · {countError ? "invitations non comptées" : plur(counts.get(e.id) || 0, "invitation")}{e.billing === "free_admin" ? " · offert" : ""}</small></span>
+        <span style={{ flex: 1, minWidth: 0 }}><b>{e.title}</b><small>{TYPE_LABEL[e.type]} · {date(e.event_date)} · {e.venue} · {countError ? "invitations non comptées" : plur(counts.get(e.id) || 0, "invitation")}{e.billing === "free_admin" || e.price_cents == null ? " · offert" : ""}</small></span>
         {e.status === "suspended" ? <span className="badge bad">Suspendu</span> : <span className="badge ok">Actif</span>}
         <span aria-hidden="true">›</span>
       </Link>

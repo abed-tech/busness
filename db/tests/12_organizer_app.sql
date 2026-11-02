@@ -17,7 +17,7 @@ do $$ begin
 end $$;
 
 do $$ declare b jsonb := public.event_billing((select v::uuid from public.t_vars where k = 'f2')); begin
-  assert (b ->> 'persons')::int = 3 and (b ->> 'due_cents')::int = 500 and (b ->> 'remaining_cents')::int = 500 and not (b ->> 'can_send')::boolean, b::text;
+  assert (b ->> 'persons')::int = 3 and (b ->> 'flat')::boolean and (b ->> 'due_cents')::int = 2000 and (b ->> 'remaining_cents')::int = 2000 and not (b ->> 'can_send')::boolean, b::text;
   begin perform public.mark_invitations_sent((select v::uuid from public.t_vars where k = 'f2'), array[gen_random_uuid()]); raise exception 'ÉCHEC';
   exception when insufficient_privilege then perform t_ok('envoi bloqué tant que le règlement n''est pas fait'); end;
 end $$;
@@ -34,7 +34,7 @@ end $$;
 reset role; set role authenticated; select t_claims('00000000-0000-0000-0000-0000000000a1');
 do $$ declare r jsonb := public.create_checkout((select v::uuid from public.t_vars where k = 'f2'), 'card', 'stripe'); begin insert into public.t_vars values ('tx_f2', r ->> 'reference'); end $$;
 reset role; set role service_role;
-select public.apply_payment_event('stripe', 'evt-f2', (select v from public.t_vars where k = 'tx_f2'), 'succeeded', 'pi_f2', 500, '{}');
+select public.apply_payment_event('stripe', 'evt-f2', (select v from public.t_vars where k = 'tx_f2'), 'succeeded', 'pi_f2', 2000, '{}');
 set role anon; select set_config('request.jwt.claims', '{}', false);
 do $$ declare inv jsonb := public.get_invitation((select v from public.t_vars where k = 'tok_k')); jus uuid; begin
   assert inv -> 'event' -> 'photos' = '["x/1.jpg"]'::jsonb, inv::text;
@@ -101,7 +101,7 @@ do $$ declare tc text; tv text; o jsonb; g uuid; begin
   perform t_ok('écrans du personnel : compteurs exacts, aucun nom côté serveur, jeton exigé');
 end $$;
 do $$ begin
-  assert (public.public_pricing() ->> 'unit_cents')::int = 500;
+  assert public.public_pricing() = '{"currency": "USD", "cents": 2000}'::jsonb, public.public_pricing()::text;
   begin perform value from public.settings; raise exception 'ÉCHEC';
   exception when insufficient_privilege then null; end;
   perform t_ok('tarif public lisible, autres paramètres inaccessibles');

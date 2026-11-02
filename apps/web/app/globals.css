@@ -462,6 +462,8 @@ a.li:hover { border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
 .pay-logo { border-radius: 12px; object-fit: contain; flex: none; }
 .pay-chosen { display: grid; justify-items: center; gap: 8px; font-weight: 600; }
 .pay-one .pay-total { display: block; font-size: 2.2rem; }
+.pay-price { display: grid; justify-items: center; gap: 6px; text-align: center; }
+.pay-price .hint { margin: 0; font-size: .88rem; }
 .pay-warn { color: var(--bad); font-size: .86rem; }
 .pay-state { justify-items: center; text-align: center; }
 .pay-state .hint { margin: 0; }

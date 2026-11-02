@@ -11,8 +11,9 @@ const Logo = ({ id }: { id: NetworkId }) => <img className="pay-logo" src={`/net
  * Paiement mobile money en deux écrans : choix du réseau, puis numéro, montant (lecture seule) et « Débiter mon compte ».
  * Le montant affiché vient de la base ; le serveur le recalcule de toute façon (create_checkout).
  * askPhone : Wonya envoie la demande au numéro saisi ; sinon le prestataire (CinetPay) le demande sur sa page.
+ * note : ce que couvre le montant (prix unique, paiement en une fois), affiché dès le choix du réseau.
  */
-export function PayForm({ action, eventId, amount, askPhone, backHref }: { action: Action; eventId: string; amount: string; askPhone: boolean; backHref: string }) {
+export function PayForm({ action, eventId, amount, note, askPhone, backHref }: { action: Action; eventId: string; amount: string; note?: string; askPhone: boolean; backHref: string }) {
   const [state, run, pending] = useActionState(action, null);
   const [network, setNetwork] = useState<NetworkId | null>(null);
   const [phone, setPhone] = useState("");
@@ -24,6 +25,7 @@ export function PayForm({ action, eventId, amount, askPhone, backHref }: { actio
       <div className="pay-step">
         <a className="pay-arrow" href={backHref} aria-label="Retour">←</a>
         <h1 className="pay-h">Choisissez votre réseau</h1>
+        <div className="pay-price"><output className="pay-total">{amount}</output>{note && <p className="hint">{note}</p>}</div>
         <div className="pay-nets">
           {NETWORKS.map((n) => (
             <button key={n.id} type="button" className="pay-net" onClick={() => setNetwork(n.id)}>
@@ -61,6 +63,7 @@ export function PayForm({ action, eventId, amount, askPhone, backHref }: { actio
       <div className="fld">
         <span className="lbl">Montant</span>
         <output className="pay-total" aria-live="polite">{amount}</output>
+        {note && <span className="hint">{note}</span>}
       </div>
       {state?.message && <div className="notice bad" role="alert">{state.message}</div>}
       <button className="btn pay-main" type="submit" disabled={pending || !ready} aria-busy={pending}>

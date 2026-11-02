@@ -12,7 +12,7 @@ import { CopyButton } from "@/components/CopyButton";
 import { date, dateTime, money, TYPE_LABEL, TX_LABEL, plur } from "@/lib/format";
 import { updateSettings, rotateServiceKey } from "../actions";
 
-type Billing = { free: boolean; persons: number; units: number; unit_cents: number; unit_persons: number; currency: string; due_cents: number; paid_cents: number; pending_cents: number; remaining_cents: number; can_send: boolean };
+type Billing = { free: boolean; flat: boolean; currency: string; due_cents: number; paid_cents: number; pending_cents: number; remaining_cents: number; can_send: boolean };
 type Stats = { confirmed_persons: number; presence: { persons: number } };
 
 export default async function EventHome({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ created?: string; updated?: string; pay?: string }> }) {
@@ -73,12 +73,11 @@ export default async function EventHome({ params, searchParams }: { params: Prom
           {!b ? <p className="hint">Indisponible pour le moment.</p> : b.free ? <p>Événement offert par Skyevenapp : aucun règlement n’est demandé.</p> : (
             <>
               <dl className="kv">
-                <dt>Personnes facturées</dt><dd>{b.persons} <span className="hint">(le plus grand entre invités et personnes attendues)</span></dd>
-                <dt>Tranches de {b.unit_persons}</dt><dd>{b.units} × {money(b.unit_cents, b.currency)}</dd>
+                <dt>Formule</dt><dd>Prix unique : {money(b.due_cents, b.currency)} par événement</dd>
                 <dt>Déjà réglé</dt><dd>{money(b.paid_cents, b.currency)}</dd>
                 <dt>Reste à régler</dt><dd><b>{money(b.remaining_cents, b.currency)}</b></dd>
               </dl>
-              <p className="hint">Un couple compte pour deux personnes. Le règlement active l’envoi des invitations.</p>
+              <p className="hint">Paiement unique, sans abonnement : invités et invitations illimités, toutes les fonctionnalités incluses. Le règlement active l’envoi des invitations.</p>
               {b.pending_cents > 0 && <p className="hint">Un paiement de {money(b.pending_cents, b.currency)} attend la confirmation du prestataire.</p>}
               {b.remaining_cents > 0 && ev.owner_id === me.id && write && (
                 <div className="row">

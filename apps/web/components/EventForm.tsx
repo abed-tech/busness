@@ -1,7 +1,8 @@
 "use client";
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
-import { parseGuests, tableCount, priceCents, KIND_LABEL } from "@ceremonia/core";
+import { parseGuests, tableCount, KIND_LABEL } from "@ceremonia/core";
 import { readGuestFile } from "@/lib/client/readGuestFile";
+import { useFormDraft } from "@/lib/client/useFormDraft";
 import { TYPES, titleOf, money } from "@/lib/format";
 import { GUEST_COUNT } from "@/lib/schemas";
 import type { ActionState } from "@/components/ConfirmAction";
@@ -34,7 +35,7 @@ export type DraftLists = { drinks: string; dishes: string; guests: string };
  * Formulaire d'événement : création écran par écran (avec listes et invités) ou modification sur une page.
  * Un brouillon non payé (draft) se modifie avec les mêmes écrans que la création, déjà remplis.
  */
-export function EventForm({ action, initial, eventId, unit, draft }: { action: (p: ActionState, fd: FormData) => Promise<ActionState>; initial?: Initial; eventId?: string; unit?: { cents: number; persons: number; currency: string }; draft?: DraftLists }) {
+export function EventForm({ action, initial, eventId, price, draft }: { action: (p: ActionState, fd: FormData) => Promise<ActionState>; initial?: Initial; eventId?: string; price?: { cents: number; currency: string }; draft?: DraftLists }) {
   const creating = !eventId || !!draft;
   const [state, run, pending] = useActionState<ActionState, FormData>(action, null);
   const [type, setType] = useState(initial?.type || "mariage");
@@ -58,7 +59,7 @@ export function EventForm({ action, initial, eventId, unit, draft }: { action: (
   const shownTitle = titleEdited ? title : titleOf(type, a, b);
   const formRef = useRef<HTMLFormElement>(null);
   const expRef = useRef<HTMLInputElement>(null);
-  // nombre d'invités obligatoire (il sert au prix) : message explicite, revérifié par le serveur et la base
+  // nombre d'invités obligatoire (il sert à préparer les tables) : message explicite, revérifié par le serveur et la base
   useEffect(() => {
     expRef.current?.setCustomValidity(!Number.isInteger(expected) || expected < 1 ? GUEST_COUNT : expected > 10000 ? "Nombre d’invités : 10 000 au maximum." : "");
   }, [expected]);
@@ -66,6 +67,12 @@ export function EventForm({ action, initial, eventId, unit, draft }: { action: (
   const [snap, setSnap] = useState<Record<string, string>>({});
   const LAST = 6; // récapitulatif : dernier écran avant l'enregistrement
   const shown = (i: number) => !creating || step === i;
+  // saisie non enregistrée gardée dans le navigateur (actualisation, absence, nouvelle connexion)
+  const kept = useFormDraft(formRef, eventId ? (draft ? "draft:" : "edit:") + eventId : "new", step, setStep);
+  useEffect(() => { if (state && !state.ok) kept.save(); }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (kept.restored && formRef.current) setSnap(Object.fromEntries(Array.from(new FormData(formRef.current).entries()).map(([k, v]) => [k, String(v)])));
+  }, [kept.restored]);
 
   /** Vérifie les champs d'un écran ; affiche la première erreur. */
   function stepValid(i: number): boolean {
@@ -83,9 +90,10 @@ export function EventForm({ action, initial, eventId, unit, draft }: { action: (
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
   function onSubmit(e: { preventDefault(): void }) {
-    if (!creating) return;
+    if (!creating) { kept.markSent(); return; }
     if (step < LAST) { e.preventDefault(); goTo(step + 1); return; }
     for (let k = 0; k < LAST; k++) if (!stepValid(k)) { e.preventDefault(); return; }
+    kept.markSent();
   }
 
   function pickType(t: string) {
@@ -97,6 +105,12 @@ export function EventForm({ action, initial, eventId, unit, draft }: { action: (
   return (
     <form ref={formRef} action={run} onSubmit={onSubmit} className="form" style={{ maxWidth: 860 }} noValidate={creating}>
       {creating && <StepHeader step={step} />}
+      {kept.restored && (
+        <div className="notice" role="status">
+          Vos saisies non enregistrées ont été retrouvées.{" "}
+          <button type="button" className="btn ghost sm" onClick={kept.discard}>Revenir aux valeurs enregistrées</button>
+        </div>
+      )}
       {eventId && <input type="hidden" name="event_id" value={eventId} />}
       <section className="card form" data-step={0} hidden={!shown(0)}>
         <h2>L’événement</h2>
@@ -163,7 +177,7 @@ export function EventForm({ action, initial, eventId, unit, draft }: { action: (
           <div className="row">
             <label className="btn ghost sm" style={{ position: "relative" }}>Importer un fichier
               <input type="file" accept=".xlsx,.csv,.txt,.tsv" style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer" }}
-                onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (!f) return; setFileErr(""); try { setGuests(await readGuestFile(f)); } catch (er) { setFileErr((er as Error).message); } }} />
+                onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (!f) return; setFileErr(""); try { setGuests(await readGuestFile(f)); kept.edited(); } catch (er) { setFileErr((er as Error).message); } }} />
             </label>
             {fileErr && <span className="badge bad">{fileErr}</span>}
           </div>
@@ -175,7 +189,7 @@ export function EventForm({ action, initial, eventId, unit, draft }: { action: (
             </div>
           )}
           <label className="check"><input type="checkbox" name="auto" defaultChecked /> Placer automatiquement les invités à table</label>
-          {unit && <p className="hint">Tarif : {money(unit.cents, unit.currency)} par tranche de {unit.persons} personnes. Estimation actuelle : <b>{money(priceCents(Math.max(persons, expected), unit.cents, unit.persons), unit.currency)}</b>. Le règlement se fait après l’aperçu de l’invitation : l’événement est créé une fois le paiement confirmé.</p>}
+          {price && <p className="hint">Tarif unique : <b>{money(price.cents, price.currency)} par événement</b>, payé une seule fois, sans abonnement. Invités et invitations illimités, toutes les fonctionnalités incluses. Le règlement se fait après l’aperçu de l’invitation : l’événement est créé une fois le paiement confirmé.</p>}
         </section>
       )}
 

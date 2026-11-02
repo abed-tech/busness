@@ -10,11 +10,11 @@ export default async function NewEvent() {
   if (me.status !== "active") redirect("/events");
   const sb = await serverClient();
   const { data: pr } = await sb.rpc("public_pricing");
-  const unit = pr ? { cents: pr.unit_cents, persons: pr.unit_persons, currency: pr.currency } : undefined;
+  const price = pr ? { cents: pr.cents, currency: pr.currency } : undefined;
   return (
     <main className="org-main">
       <PageHeader eyebrow="Nouvel événement" title="Créer un événement" actions={<BackLink href="/events">Mes événements</BackLink>} />
-      <EventForm action={createEvent} unit={unit} />
+      <EventForm action={createEvent} price={price} />
     </main>
   );
 }

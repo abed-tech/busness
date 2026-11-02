@@ -37,6 +37,26 @@ test("sessions : jeton haché, application séparée, inactivité, déconnexion"
   const t2 = (await S.auth.createSession(A, "org")).token; await S.auth.deleteSession(t2); assert.equal(await S.auth.getSession(t2, "org"), null);
 });
 
+test("sessions : absence mesurée par la base, lecture sans activité, dernière page gardée", async () => {
+  const { token } = await S.auth.createSession(A, "org");
+  const s0 = await S.auth.getSession(token, "org", 30, { touch: false });
+  assert.equal(s0.lastPath, null); assert.ok(s0.idleSeconds < 5);
+  await S.auth.touchSession(s0.sessionId, "/events/abc/guests?q=luc");
+  const away = (min) => S.asOwner((q) => q.query("update auth.sessions set last_seen_at = now() - make_interval(mins => $2) where id = $1", [s0.sessionId, min]));
+  await away(15);
+  const s1 = await S.auth.getSession(token, "org", 30, { touch: false });
+  assert.ok(s1.idleSeconds >= 15 * 60 && s1.idleSeconds < 16 * 60, "absence de 15 min mesurée");
+  assert.equal(s1.lastPath, "/events/abc/guests?q=luc");
+  assert.ok((await S.auth.getSession(token, "org", 30, { touch: false })).idleSeconds >= 15 * 60, "une lecture seule ne compte pas comme une activité");
+  await S.auth.touchSession(s1.sessionId);
+  const s2 = await S.auth.getSession(token, "org", 30, { touch: false });
+  assert.ok(s2.idleSeconds < 5); assert.equal(s2.lastPath, "/events/abc/guests?q=luc", "activité sans page : dernière page conservée");
+  await assert.rejects(S.auth.touchSession(s2.sessionId, "//autre-site.example"), "chemin externe refusé par la base");
+  await away(30);
+  assert.equal(await S.auth.getSession(token, "org", 30, { touch: false }), null, "30 min d'absence : session fermée");
+  assert.equal(await S.auth.getSession(token, "org"), null, "et supprimée : le mot de passe est exigé");
+});
+
 test("jetons à usage unique : une seule utilisation", async () => {
   const t = await S.auth.createOneTimeToken(A, "recovery", 30);
   assert.equal(await S.auth.consumeOneTimeToken(t, "confirm"), null, "mauvais type");

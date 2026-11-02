@@ -538,9 +538,7 @@ export function readiness(
 }
 
 // ---------------- montants ----------------
-export function priceCents(personsBilled: number, unitCents = 500, unitPersons = 50): number {
-  return Math.ceil(Math.max(personsBilled, 1) / unitPersons) * unitCents;
-}
+// Le prix d'un événement (prix unique) est toujours calculé par la base : event_billing, create_checkout.
 export function formatMoney(cents: number, currency = "USD", locale = "fr-FR"): string {
   return new Intl.NumberFormat(locale, { style: "currency", currency, minimumFractionDigits: cents % 100 ? 2 : 0 }).format(cents / 100);
 }

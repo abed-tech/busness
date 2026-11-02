@@ -48,13 +48,13 @@ reset role; set role authenticated; select t_claims('00000000-0000-0000-0000-000
 update public.events set photos = array['sim/1.jpg'] where title = 'Noces Sim';
 do $$ declare e uuid := (select v::uuid from public.t_vars where k = 'sim'); r jsonb; r2 jsonb; begin
   r := public.start_simulated_checkout(e);
-  -- 120 invités, tarif 5 $ par tranche de 50 → 3 tranches → 15 $
-  assert (r ->> 'amount_cents')::int = 1500, r::text;
+  -- prix unique : 20 $ quel que soit le nombre d'invités (120 ici)
+  assert (r ->> 'amount_cents')::int = 2000, r::text;
   r2 := public.start_simulated_checkout(e);
   assert r2 ->> 'reference' = r ->> 'reference' and (r2 ->> 'resumed')::boolean, 'double clic : second paiement créé';
   assert (select count(*) from public.transactions where event_id = e) = 1;
   insert into public.t_vars values ('sim_tx1', r ->> 'reference');
-  perform t_ok('récapitulatif : montant calculé par le serveur (120 invités → 15 $), double clic sans doublon');
+  perform t_ok('récapitulatif : montant calculé par le serveur (prix unique 20 $), double clic sans doublon');
 end $$;
 -- échec puis annulation : aucun événement actif, nouvel essai possible
 do $$ declare e uuid := (select v::uuid from public.t_vars where k = 'sim'); r jsonb; begin
@@ -69,14 +69,15 @@ do $$ declare e uuid := (select v::uuid from public.t_vars where k = 'sim'); r j
   assert r ->> 'status' = 'cancelled' and (select status from public.events where id = e) = 'draft';
   perform t_ok('paiement échoué ou annulé : aucun événement actif, nouvel essai sans recommencer');
 end $$;
--- le nombre d'invités change après le récapitulatif : le paiement est annulé, jamais confirmé à l'ancien montant
+-- le nombre d'invités change après le récapitulatif : le prix unique ne bouge pas, le même paiement est repris
 do $$ declare e uuid := (select v::uuid from public.t_vars where k = 'sim'); r jsonb; ref text; begin
   ref := public.start_simulated_checkout(e) ->> 'reference';
   update public.events set expected = 180 where id = e;
-  r := public.complete_simulated_payment(ref, 'succeeded');
-  assert not (r ->> 'ok')::boolean and r ->> 'status' = 'cancelled', r::text;
+  r := public.start_simulated_checkout(e);
+  assert r ->> 'reference' = ref and (r ->> 'resumed')::boolean and (r ->> 'amount_cents')::int = 2000, r::text;
+  assert (public.event_billing(e) ->> 'due_cents')::int = 2000;
   assert (select status from public.events where id = e) = 'draft';
-  perform t_ok('montant recalculé à la confirmation : un récapitulatif périmé est refusé');
+  perform t_ok('prix unique : plus d''invités ne change ni le montant ni le paiement en attente');
 end $$;
 -- un autre organisateur ne peut pas confirmer ce paiement
 do $$ declare e uuid := (select v::uuid from public.t_vars where k = 'sim'); begin
@@ -100,7 +101,7 @@ do $$ declare n int; begin
 end $$;
 -- réussite : création définitive, une seule fois
 do $$ declare e uuid := (select v::uuid from public.t_vars where k = 'sim'); r jsonb; ref text := (select v from public.t_vars where k = 'sim_tx4'); begin
-  assert (select amount_cents from public.transactions where reference = ref) = 2000; -- 180 invités → 4 tranches
+  assert (select amount_cents from public.transactions where reference = ref) = 2000; -- prix unique, même avec 180 invités
   r := public.complete_simulated_payment(ref, 'succeeded');
   assert (r ->> 'ok')::boolean and r ->> 'status' = 'succeeded', r::text;
   assert (select status from public.events where id = e) = 'active', 'paiement réussi : événement non activé';
@@ -147,7 +148,7 @@ reset role;
 do $$ declare e uuid := (select v::uuid from public.t_vars where k = 'sim'); h public.event_history; begin
   select * into h from public.event_history where event_id = e;
   assert found, 'historique absent';
-  assert h.title = 'Noces Sim' and h.guests = 180 and h.amount_cents = 2000, row_to_json(h)::text;
+  assert h.title = 'Noces Sim' and h.guests = 180 and h.invitations = 1 and h.amount_cents = 2000, row_to_json(h)::text;
   assert row_to_json(h)::text not like '%Couple Sim%' and row_to_json(h)::text not like '%+243%', 'donnée personnelle dans l''historique';
   perform private.purge_event(e); -- rejouer la suppression ne compte rien deux fois
   assert (select count(*) from public.event_history where event_id = e) = 1;

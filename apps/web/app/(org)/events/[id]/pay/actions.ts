@@ -65,6 +65,22 @@ export async function startPayment(_: ActionState, fd: FormData): Promise<Action
 const UUID = /^[0-9a-f-]{36}$/;
 
 /**
+ * Brouillon enregistré avant le prix unique : offert par Skyevenapp. « Générer mon invitation » crée l'événement
+ * sans paiement ; la base vérifie le propriétaire, la photo et le nombre d'invités (activate_offered_event).
+ */
+export async function activateOfferedEvent(_: ActionState, fd: FormData): Promise<ActionState> {
+  await requireOrganizer();
+  const id = String(fd.get("event_id"));
+  if (!UUID.test(id)) return { ok: false, message: "Événement introuvable." };
+  const r = await rpc<{ ok: boolean; error?: string }>("activate_offered_event", { p_event: id });
+  if (!r.ok) return { ok: false, message: r.message };
+  if (!r.data.ok) return { ok: false, message: r.data.error || "L’événement n’a pas pu être créé." };
+  revalidatePath("/events");
+  revalidatePath(`/events/${id}`, "layout");
+  redirect(`/events/${id}`);
+}
+
+/**
  * « Générer mon invitation » : ouvre le paiement simulé d'un brouillon. Ne crée pas l'événement.
  * Le montant et le récapitulatif sont calculés par la base (start_simulated_checkout) ; un paiement en attente
  * au même montant est repris, ce qui protège des clics multiples et des actualisations.

@@ -18,9 +18,9 @@ export async function saveRetention(_: ActionState, fd: FormData): Promise<Actio
 
 export async function savePricing(_: ActionState, fd: FormData): Promise<ActionState> {
   await requireAdmin("settings.write");
-  const p = z.object({ price: z.coerce.number().positive().max(10000), unit_persons: z.coerce.number().int().min(1).max(10000), currency: z.enum(["USD", "CDF", "EUR"]) }).safeParse(Object.fromEntries(fd));
+  const p = z.object({ price: z.coerce.number().positive().max(10000), currency: z.enum(["USD", "CDF", "EUR"]) }).safeParse(Object.fromEntries(fd));
   if (!p.success) return { ok: false, message: "Tarif invalide." };
-  return done(await rpc("admin_update_setting", { p_key: "pricing", p_value: { currency: p.data.currency, unit_cents: Math.round(p.data.price * 100), unit_persons: p.data.unit_persons } }), "Tarif enregistré. Il s’applique aux prochains paiements uniquement.");
+  return done(await rpc("admin_update_setting", { p_key: "event_price", p_value: { currency: p.data.currency, cents: Math.round(p.data.price * 100) } }), "Tarif enregistré. Il s’applique aux événements créés à partir de maintenant.");
 }
 
 export async function saveStaffLimits(_: ActionState, fd: FormData): Promise<ActionState> {

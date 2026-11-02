@@ -10,7 +10,7 @@ insert into public.guests (event_id, name, kind, whatsapp, table_no) select v::u
 -- règlement confirmé, mais aucune photo : envoi refusé
 do $$ declare r jsonb := public.create_checkout((select v::uuid from public.t_vars where k = 'np'), 'card', 'stripe'); begin insert into public.t_vars values ('tx_np', r ->> 'reference'); end $$;
 reset role; set role service_role;
-select public.apply_payment_event('stripe', 'evt-np', (select v from public.t_vars where k = 'tx_np'), 'succeeded', 'pi_np', 500, '{}');
+select public.apply_payment_event('stripe', 'evt-np', (select v from public.t_vars where k = 'tx_np'), 'succeeded', 'pi_np', 2000, '{}');
 reset role; set role authenticated; select t_claims('00000000-0000-0000-0000-0000000000a1');
 do $$ declare e uuid := (select v::uuid from public.t_vars where k = 'np'); g uuid := (select id from public.guests where name = 'Mr Photo'); begin
   assert (public.event_billing(e) ->> 'can_send')::boolean, 'règlement attendu';

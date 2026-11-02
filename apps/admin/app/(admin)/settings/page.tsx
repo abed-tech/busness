@@ -9,7 +9,7 @@ import { saveRetention, savePricing, saveStaffLimits, grantAdmin, updateAdmin } 
 
 type Admin = { user_id: string; email: string; role: AdminRole; name: string; active: boolean; created_at: string; me: boolean };
 type Retention = { enabled: boolean; days: number; from: "creation" | "event_date" };
-type Pricing = { currency: string; unit_cents: number; unit_persons: number };
+type Pricing = { currency: string; cents: number };
 type Limits = { max_controllers: number; max_servers: number };
 
 export default async function SettingsPage() {
@@ -17,7 +17,7 @@ export default async function SettingsPage() {
   const sb = await serverClient();
   const { data: rows } = await sb.from("settings").select("key, value, updated_at");
   const get = <T,>(k: string) => (rows || []).find((x: { key: string }) => x.key === k) as { value: T; updated_at: string } | undefined;
-  const ret = get<Retention>("retention"), pr = get<Pricing>("pricing"), lim = get<Limits>("staff_limits");
+  const ret = get<Retention>("retention"), pr = get<Pricing>("event_price"), lim = get<Limits>("staff_limits");
   const canWrite = s.perms.has("settings.write");
   const admins = s.perms.has("admins.manage") ? await rpc<{ items: Admin[] }>("admin_list_admins") : null;
   const { data: factors } = await sb.auth.mfa.listFactors();
@@ -59,12 +59,12 @@ export default async function SettingsPage() {
 
         <section className="card">
           <h2>Tarif</h2>
-          {pr && <p style={{ marginBottom: 12 }}>{money(pr.value.unit_cents, pr.value.currency)} par tranche de {pr.value.unit_persons} personnes · un couple compte pour 2. Le montant est toujours calculé par le serveur.</p>}
+          {pr && <p style={{ marginBottom: 12 }}>Prix unique : <b>{money(pr.value.cents, pr.value.currency)} par événement</b>, payé une seule fois, sans abonnement. Invités et invitations illimités, toutes les fonctionnalités incluses. Le montant est toujours calculé par le serveur.</p>}
+          <p className="hint" style={{ marginBottom: 12 }}>Le prix est figé à la création de chaque événement : une modification ne s’applique qu’aux événements créés ensuite. Les événements antérieurs au prix unique gardent leur tarif d’origine.</p>
           {pr && canWrite && (
             <ActionForm action={savePricing} hidden={{}} submit="Enregistrer le tarif">
-              <div className="grid g3">
-                <div className="fld"><label htmlFor="price">Prix par tranche</label><input id="price" name="price" type="number" step="0.01" min={0.01} defaultValue={pr.value.unit_cents / 100} required /></div>
-                <div className="fld"><label htmlFor="unit_persons">Personnes par tranche</label><input id="unit_persons" name="unit_persons" type="number" min={1} defaultValue={pr.value.unit_persons} required /></div>
+              <div className="grid g2">
+                <div className="fld"><label htmlFor="price">Prix par événement</label><input id="price" name="price" type="number" step="0.01" min={0.01} defaultValue={pr.value.cents / 100} required /></div>
                 <div className="fld"><label htmlFor="currency">Devise</label><select id="currency" name="currency" defaultValue={pr.value.currency}><option>USD</option><option>CDF</option><option>EUR</option></select></div>
               </div>
             </ActionForm>

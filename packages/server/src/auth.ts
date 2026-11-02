@@ -9,7 +9,7 @@ import { newSecret, otpauthUri, verifyTotp } from "./totp";
  * - Second facteur : TOTP, obligatoire pour l'admin (niveau aal2 porté par la session).
  */
 export type App = "org" | "admin";
-export type Session = { sessionId: string; userId: string; email: string; aal: "aal1" | "aal2" };
+export type Session = { sessionId: string; userId: string; email: string; aal: "aal1" | "aal2"; idleSeconds: number; lastPath: string | null };
 
 const sha = (s: string) => createHash("sha256").update(s).digest();
 const newToken = () => randomBytes(32).toString("base64url");
@@ -89,23 +89,33 @@ export async function createSession(userId: string, app: App, meta: { ip?: strin
   return { token, expiresAt };
 }
 
-/** Session valide pour ce jeton et cette application. Inactivité : session supprimée au-delà de idleMinutes. */
-export async function getSession(token: string | undefined | null, app: App, idleMinutes?: number): Promise<Session | null> {
+/**
+ * Session valide pour ce jeton et cette application. Inactivité : session supprimée à partir de idleMinutes.
+ * idleSeconds est l'inactivité mesurée avant cette requête. Avec touch: false, la lecture n'est pas comptée comme
+ * une activité (l'appelant décide avec touchSession).
+ */
+export async function getSession(token: string | undefined | null, app: App, idleMinutes?: number, opts: { touch?: boolean } = {}): Promise<Session | null> {
   if (!token || token.length < 20 || token.length > 200) return null;
   return asOwner(async (q) => {
     const r = await q.query(
-      `select s.id::text as sid, s.user_id::text as uid, u.email, s.aal, extract(epoch from now() - s.last_seen_at)::int as idle_s
+      `select s.id::text as sid, s.user_id::text as uid, u.email, s.aal, s.last_path,
+              extract(epoch from now() - s.last_seen_at)::int as idle_s
          from auth.sessions s join auth.users u on u.id = s.user_id
         where s.token_hash = $1 and s.app = $2 and s.expires_at > now()`, [sha(token), app]);
     const s = r.rows[0];
     if (!s) return null;
-    if (idleMinutes && s.idle_s > idleMinutes * 60) {
+    if (idleMinutes && s.idle_s >= idleMinutes * 60) {
       await q.query("delete from auth.sessions where id = $1", [s.sid]);
       return null;
     }
-    if (s.idle_s > 60) await q.query("update auth.sessions set last_seen_at = now() where id = $1", [s.sid]);
-    return { sessionId: s.sid, userId: s.uid, email: s.email, aal: s.aal };
+    if (opts.touch !== false && s.idle_s > 60) await q.query("update auth.sessions set last_seen_at = now() where id = $1", [s.sid]);
+    return { sessionId: s.sid, userId: s.uid, email: s.email, aal: s.aal, idleSeconds: Math.max(0, s.idle_s), lastPath: s.last_path ?? null };
   });
+}
+
+/** Enregistre une activité réelle (heure mesurée par la base) et, si fournie, la page consultée. */
+export async function touchSession(sessionId: string, path?: string | null): Promise<void> {
+  await asOwner((q) => q.query("update auth.sessions set last_seen_at = now(), last_path = coalesce($2, last_path) where id = $1", [sessionId, path ?? null]));
 }
 
 export async function deleteSession(token: string | undefined | null): Promise<void> {

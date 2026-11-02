@@ -153,13 +153,13 @@ end $$;
 reset role; set role authenticated; select t_claims('00000000-0000-0000-0000-0000000000a1');
 do $$ declare r jsonb; begin
   r := public.create_checkout((select v::uuid from public.t_vars where k = 'e1'), 'mobile_money', 'cinetpay');
-  assert (r ->> 'amount_cents')::int = 500, r::text;
+  assert (r ->> 'amount_cents')::int = 2000, r::text;
   insert into public.t_vars values ('tx1', r ->> 'reference');
   r := public.create_checkout((select v::uuid from public.t_vars where k = 'e1'), 'card', 'stripe');
   insert into public.t_vars values ('tx2', r ->> 'reference');
   begin perform public.apply_payment_event('stripe', 'x', 'y', 'succeeded', null, 1, '{}'); raise exception 'ÉCHEC';
   exception when insufficient_privilege then perform t_ok('un organisateur ne peut pas confirmer un paiement lui-même'); end;
-  perform t_ok('montant calculé par le serveur (5 personnes → 5 $)');
+  perform t_ok('montant calculé par le serveur (prix unique : 20 $ par événement)');
 end $$;
 select t_claims('00000000-0000-0000-0000-0000000000a2');
 do $$ begin
@@ -170,16 +170,16 @@ reset role; set role service_role;
 do $$ declare r jsonb; begin
   r := public.apply_payment_event('cinetpay', 'evt-1', (select v from public.t_vars where k = 'tx1'), 'succeeded', 'CP-1', 400, '{"proof":1}');
   assert r ->> 'error' = 'amount_mismatch', r::text;
-  r := public.apply_payment_event('cinetpay', 'evt-2', (select v from public.t_vars where k = 'tx1'), 'succeeded', 'CP-1', 500, '{"proof":2}');
+  r := public.apply_payment_event('cinetpay', 'evt-2', (select v from public.t_vars where k = 'tx1'), 'succeeded', 'CP-1', 2000, '{"proof":2}');
   assert (r ->> 'ok')::boolean, r::text;
-  r := public.apply_payment_event('cinetpay', 'evt-2', (select v from public.t_vars where k = 'tx1'), 'succeeded', 'CP-1', 500, '{"proof":2}');
+  r := public.apply_payment_event('cinetpay', 'evt-2', (select v from public.t_vars where k = 'tx1'), 'succeeded', 'CP-1', 2000, '{"proof":2}');
   assert (r ->> 'duplicate')::boolean, 'doublon de webhook non détecté';
-  r := public.apply_payment_event('stripe', 'evt-3', (select v from public.t_vars where k = 'tx2'), 'failed', 'pi_1', 500, '{}');
+  r := public.apply_payment_event('stripe', 'evt-3', (select v from public.t_vars where k = 'tx2'), 'failed', 'pi_1', 2000, '{}');
   perform t_ok('webhooks : montant vérifié, doublons ignorés, échec enregistré');
 end $$;
 reset role; set role authenticated; select t_claims('00000000-0000-0000-0000-0000000000b3', 'aal2');
 do $$ declare d jsonb := public.admin_dashboard(); t jsonb := public.admin_transactions(); begin
-  assert (d -> 'finance' ->> 'revenue_cents')::int = 500, d::text;
+  assert (d -> 'finance' ->> 'revenue_cents')::int = 2000, d::text;
   assert (t -> 'summary' ->> 'succeeded')::int = 1 and (t -> 'summary' ->> 'failed')::int = 1, t::text;
   perform t_ok('revenu du mois = paiements confirmés uniquement (gratuits et échecs exclus)');
 end $$;

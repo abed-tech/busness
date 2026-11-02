@@ -1,6 +1,6 @@
 import "server-only";
 import { redirect } from "next/navigation";
-import { serverClient } from "./data/server";
+import { serverClient, hasSessionCookie, trackNavigation } from "./data/server";
 
 export interface Organizer {
   id: string;
@@ -15,11 +15,13 @@ export interface Organizer {
 /**
  * Exige un organisateur connecté avec un profil. Un compte administrateur est refusé ici :
  * l'administration a son propre domaine et ses propres comptes.
+ * Session fermée après 30 min sans activité : connexion exigée (mot de passe) ; règles de retour : trackNavigation.
  */
 export async function requireOrganizer(): Promise<Organizer> {
   const sb = await serverClient();
   const { data: u } = await sb.auth.getUser();
-  if (!u.user) redirect("/login");
+  if (!u.user) redirect((await hasSessionCookie()) ? "/auth/idle" : "/login");
+  await trackNavigation();
   const { data: adm } = await sb.from("admin_users").select("user_id").eq("user_id", u.user.id).maybeSingle();
   if (adm) {
     await sb.auth.signOut();

@@ -96,12 +96,6 @@ test("préparation à l'envoi", () => {
   assert.deepEqual(C.readiness({ ...e, photos: ["x/1.jpg"] }, [g], g, { drinks: 1, dishes: 1 }), []);
 });
 
-test("tarif : 5 $ par tranche de 50 personnes", () => {
-  assert.equal(C.priceCents(1), 500);
-  assert.equal(C.priceCents(50), 500);
-  assert.equal(C.priceCents(51), 1000);
-});
-
 // ---------------- placement proposé (planSeating) ----------------
 const many = (n, kind, p = kind) => Array.from({ length: n }, (_, i) => G(p + i, kind));
 const tablesOf = (r) => r.tables.filter((t) => t.guests.length);

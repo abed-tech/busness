@@ -2,13 +2,14 @@ import { requireAdmin, rpc } from "@/lib/auth";
 import { PageHeader, ErrorBox, Empty, Pager, Stat, SortTh } from "@/components/ui";
 import { dateTime, money } from "@/lib/format";
 
-type Row = { title: string; guests: number; amount_cents: number | null; currency: string; deleted_at: string };
-type Totals = { count: number; guests: number; amount_cents: number | null; currency: string };
-const SORTS = ["recent", "oldest", "title", "guests", "amount"];
+type Row = { title: string; guests: number; invitations: number | null; amount_cents: number | null; currency: string; deleted_at: string };
+type Totals = { count: number; guests: number; invitations: number; amount_cents: number | null; currency: string };
+const SORTS = ["recent", "oldest", "title", "guests", "invitations", "amount"];
 
 /**
  * Historique statistique des événements supprimés (suppression automatique, par l'organisateur ou l'administration).
- * Seuls le nom, le nombre d'invités et le montant généré sont conservés ; aucune donnée personnelle des invités.
+ * Seuls le nom, le nombre d'invités, le nombre d'invitations générées, le montant payé et la date de suppression sont
+ * conservés ; aucune donnée personnelle des invités. Invitations : inconnu (—) pour les suppressions antérieures.
  * Les montants sont masqués sans la permission finances (vérifié par la base).
  */
 export default async function HistoryPage({ searchParams }: { searchParams: Promise<{ q?: string; sort?: string; page?: string }> }) {
@@ -22,12 +23,13 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
   return (
     <>
       <PageHeader eyebrow="Statistiques" title="Événements supprimés"
-        sub="Conservé après chaque suppression : le nom de l’événement, le nombre d’invités et le montant généré. Aucune donnée personnelle (invités, coordonnées, photos, invitations)." />
+        sub="Conservé après chaque suppression : le nom de l’événement, le nombre d’invités, le nombre d’invitations générées, le montant payé et la date de suppression. Aucune donnée personnelle (invités, coordonnées, photos, contenu des invitations)." />
       {!r.ok ? <ErrorBox message={r.message} /> : (
         <>
-          <div className="grid g3" style={{ marginBottom: 16 }}>
+          <div className="grid g4" style={{ marginBottom: 16 }}>
             <Stat icon="archive" label="Événements supprimés" value={r.data.totals.count} sub={sp.q ? "pour cette recherche" : "depuis le début"} />
             <Stat icon="users" label="Invités cumulés" value={r.data.totals.guests} />
+            <Stat icon="users" label="Invitations générées" value={r.data.totals.invitations} sub="suppressions enregistrées depuis le prix unique" />
             {r.data.finance
               ? <Stat icon="money" label="Montant généré" value={money(r.data.totals.amount_cents, r.data.totals.currency)} sub="Paiements confirmés, déjà comptés dans les finances" />
               : <div className="card hint">Les montants ne sont pas visibles avec votre rôle.</div>}
@@ -43,13 +45,15 @@ export default async function HistoryPage({ searchParams }: { searchParams: Prom
                 <thead><tr>
                   <SortTh label="Événement" k="title" cur={sort} href={by} />
                   <SortTh label="Invités" k="guests" cur={sort} href={by} className="r" />
-                  {r.data.finance && <SortTh label="Montant généré" k="amount" cur={sort} href={by} className="r" />}
+                  <SortTh label="Invitations" k="invitations" cur={sort} href={by} className="r" />
+                  {r.data.finance && <SortTh label="Montant payé" k="amount" cur={sort} href={by} className="r" />}
                   <SortTh label="Supprimé le" k="recent" cur={sort} href={by} className="hide-m" />
                 </tr></thead>
                 <tbody>{r.data.items.map((h, i) => (
                   <tr key={i}>
                     <td><b>{h.title}</b></td>
                     <td className="r">{h.guests}</td>
+                    <td className="r">{h.invitations ?? "—"}</td>
                     {r.data.finance && <td className="r">{money(h.amount_cents, h.currency)}</td>}
                     <td className="hide-m">{dateTime(h.deleted_at)}</td>
                   </tr>

@@ -9,7 +9,7 @@ import { money, date, plur } from "@/lib/format";
 import { startSimulatedPayment, completeSimulatedPayment } from "../actions";
 
 type Tx = { reference: string; amount_cents: number; currency: string; status: string; persons: number; provider: string; confirmed_at: string | null;
-  event_snapshot: { title?: string; expected?: number; units?: number; unit_cents?: number; unit_persons?: number } };
+  event_snapshot: { title?: string; expected?: number; pricing?: string } };
 
 const STATE: Record<string, { label: string; tone: string }> = {
   pending: { label: "Paiement en attente", tone: "warn" }, succeeded: { label: "Paiement simulé réussi", tone: "ok" },
@@ -57,11 +57,8 @@ export default async function SimulatedPayment({ params, searchParams }: { param
           </div>
           <dl className="kv">
             <dt>Événement</dt><dd><b>{snap.title || ev.title}</b><br /><span className="hint">{date(ev.event_date)} · {ev.venue}</span></dd>
-            <dt>Nombre d’invités</dt><dd>{snap.expected ?? ev.expected}{tx.persons !== (snap.expected ?? ev.expected) && <span className="hint"> · {plur(tx.persons, "personne")} facturée(s) d’après la liste d’invités</span>}</dd>
-            {snap.unit_cents != null && snap.unit_persons != null && <>
-              <dt>Prix unitaire</dt><dd>{money(snap.unit_cents, tx.currency)} par tranche de {snap.unit_persons} personnes</dd>
-              <dt>Tranches</dt><dd>{snap.units} × {money(snap.unit_cents, tx.currency)}</dd>
-            </>}
+            <dt>Nombre d’invités</dt><dd>{snap.pricing === "flat" ? <>{snap.expected ?? ev.expected} <span className="hint">· illimité, sans supplément</span></> : <>{snap.expected ?? ev.expected}{tx.persons !== (snap.expected ?? ev.expected) && <span className="hint"> · {plur(tx.persons, "personne")} d’après la liste d’invités</span>}</>}</dd>
+            {snap.pricing === "flat" && <><dt>Formule</dt><dd>Prix unique par événement · paiement en une fois · toutes les fonctionnalités incluses</dd></>}
             <dt>Total à payer</dt><dd className="pay-total">{amount}</dd>
             <dt>Référence</dt><dd><code>{tx.reference}</code></dd>
           </dl>

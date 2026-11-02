@@ -54,6 +54,12 @@ do $$ begin
   exception when invalid_parameter_value then null; end;
   assert (public.admin_update_setting('pricing', '{"currency":"USD","unit_cents":500,"unit_persons":50,"extra":"x"}') ->> 'ok')::boolean;
   assert not ((select value from public.settings where key = 'pricing') ? 'extra');
+  begin perform public.admin_update_setting('event_price', '{"currency":"USD","cents":0}'); raise exception 'ÉCHEC';
+  exception when invalid_parameter_value then null; end;
+  begin perform public.admin_update_setting('event_price', '{"currency":"XYZ","cents":2000}'); raise exception 'ÉCHEC';
+  exception when invalid_parameter_value then null; end;
+  assert (public.admin_update_setting('event_price', '{"currency":"USD","cents":2000,"extra":"x"}') ->> 'ok')::boolean;
+  assert (select value from public.settings where key = 'event_price') = '{"currency": "USD", "cents": 2000}'::jsonb;
   assert (public.admin_update_setting('retention', '{"enabled":false,"days":7,"from":"creation"}') ->> 'ok')::boolean;
   perform t_ok('paramètres validés et nettoyés côté serveur');
 end $$;

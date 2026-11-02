@@ -59,12 +59,35 @@ Inchangé : les 8 migrations métier existantes (tables, RLS, fonctions, journal
 
 | Espace | Où | Authentification | Vérifications côté base |
 |---|---|---|---|
-| Organisateur | ceremonia-app (`/events…`) | e-mail + mot de passe, cookie `cer-org` (httpOnly, 30 jours) | RLS par propriétaire, compte suspendu = lecture seule, paiement puis photo obligatoires avant envoi |
+| Organisateur | ceremonia-app (`/events…`) | e-mail + mot de passe, cookie `cer-org` (httpOnly, 30 jours), **session fermée après 30 min sans activité** (voir § 4 bis) | RLS par propriétaire, compte suspendu = lecture seule, paiement puis photo obligatoires avant envoi |
 | Invité | ceremonia-app `/i/<jeton>` | jeton d'invitation aléatoire | `get_invitation`, `submit_rsvp` : fermée tant que non réglée, réponse figée après l'entrée |
 | Contrôleur / serveur | ceremonia-app `/k/<événement>/<accès>` | code + mot de passe bcrypt, jeton de session, blocage après 5 essais | une seule entrée par invité (clé primaire), QR inconnu ou d'un autre événement refusé |
 | Super administrateur | cer-console-… (domaine distinct) | mot de passe + **TOTP obligatoire**, cookie `cer-adm` (SameSite=Strict), 30 min d'inactivité, 12 h maximum | `private.has_perm` (admin actif + aal2), rôles super / modérateur / gestionnaire, journal immuable |
 
 Un compte organisateur ne peut jamais devenir administrateur, et inversement (tests SQL et test de parcours).
+
+### 4 bis. Navigation et session de l'organisateur
+
+Durées mesurées par PostgreSQL depuis la dernière activité réelle (`auth.sessions.last_seen_at`), jamais par le
+navigateur ; même règle navigateur ouvert ou fermé :
+
+| Absence | Résultat |
+|---|---|
+| moins de 10 min | même page (dernière page consultée, `auth.sessions.last_path`, avec recherche et filtres), données relues |
+| 10 à moins de 30 min | « Mes événements », sans mot de passe |
+| 30 min ou plus | session supprimée, connexion exigée (`/auth/idle` → `/login?e=idle`), puis « Mes événements » |
+
+- Côté serveur : `trackNavigation` (`apps/web/lib/data/server.ts`, appelée par `requireOrganizer`) applique ces règles à
+  chaque page ; une actualisation est une requête comme une autre (même page sous 10 min, aucune nouvelle session).
+  Les préchargements de liens ne comptent pas comme une activité ; une action (formulaire envoyé) n'est jamais
+  redirigée. Le cookie `cer-nav` (sans date d'expiration, effacé à la fermeture du navigateur) repère la réouverture :
+  l'accueil, la connexion ou « Mes événements » rouvrent alors la dernière page consultée (moins de 10 min).
+- Page déjà ouverte : `SessionGuard` signale les interactions (au plus une fois par minute) et le retour sur l'onglet
+  à `POST /api/session`, qui décide selon la même mesure ; après 30 min sans interaction, il vérifie la session et
+  affiche la connexion si elle est fermée. Il ne quitte jamais une page dont un formulaire est en cours de saisie.
+- Saisies du formulaire d'événement (création, brouillon, modification) gardées dans le navigateur jusqu'à
+  l'enregistrement (`useFormDraft`) : retrouvées après une actualisation, une absence ou une nouvelle connexion.
+- L'API mobile (`/api/v1`, jeton Bearer) garde sa durée de session de 30 jours.
 
 ## 5. Création d'un événement : aperçu, paiement, puis création définitive
 
@@ -77,7 +100,13 @@ Un compte organisateur ne peut jamais devenir administrateur, et inversement (te
   navigateur envoie ; le nombre d'invités (`expected ≥ 1`) est exigé par la base (`events_require_guest_count`).
 - Un brouillon n'est jamais actif : invitations fermées, aucun accès du jour J, absent de « Mes événements » (rubrique
   « Créations à finaliser ») et des listes d'administration (filtre « Brouillons non payés »).
-- `start_simulated_checkout` calcule le montant avec la tarification existante et reprend le paiement en attente (pas de
+- Tarif : **prix unique par événement** (paramètre `event_price`, 20 USD par défaut), payé une seule fois, sans
+  abonnement ; invités et invitations illimités. Le prix est figé à la création (`events.price_cents`, déclencheur
+  `events_flat_price`, colonne non modifiable par le navigateur). `private.event_price` est la seule source du montant
+  dû (`event_billing`, `create_checkout`, paiement simulé). Événements enregistrés avant le prix unique (`price_cents`
+  vide) : **tous offerts** (`private.event_offered`) — aucun montant dû, invitations ouvertes sans paiement ; un brouillon
+  de cette époque est créé sans paiement à la fin de sa création (`activate_offered_event`, photo toujours exigée).
+- `start_simulated_checkout` calcule le montant avec `private.event_price` et reprend le paiement en attente (pas de
   doublon) ; `complete_simulated_payment` vérifie le propriétaire, l'état et le montant recalculé, verrouille la ligne et
   est rejouable sans effet. Toute transaction qui passe à « réussie » active le brouillon (`transactions_activate_draft`),
   y compris un futur paiement réel confirmé par webhook. Le paiement simulé se désactive par le paramètre
@@ -86,7 +115,8 @@ Un compte organisateur ne peut jamais devenir administrateur, et inversement (te
   money (CinetPay) configurés, et l'événement s'active à la confirmation signée du prestataire.
 - Brouillons abandonnés : effacés après 30 jours sans activité (tâche planifiée `purge_stale_drafts`).
 - Suppression d'un événement (organisateur, administration, règle de conservation) : `private.purge_event` inscrit d'abord
-  dans `event_history` le nom, le nombre d'invités et le montant réglé, une seule fois par événement ; consultable dans
+  dans `event_history` le nom, le nombre d'invités, le nombre d'invitations générées, le montant réglé et la date de
+  suppression, une seule fois par événement ; consultable dans
   l'administration (« Événements supprimés », permission `reports.read`, montants avec `finance.read`).
 
 ## 6. Communications et sécurité
