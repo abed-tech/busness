@@ -10,6 +10,8 @@ for v in DATABASE_URL ORGANIZER_ORIGIN ADMIN_ORIGIN; do
 done
 if [ "$ORGANIZER_ORIGIN" = "$ADMIN_ORIGIN" ]; then echo "ORGANIZER_ORIGIN et ADMIN_ORIGIN doivent être deux domaines différents." >&2; exit 1; fi
 node packages/server/scripts/migrate.mjs db/migrations
+# premier administrateur depuis Render > Environment (ADMIN_BOOTSTRAP_*), seulement si aucun n'existe encore
+if [ "$APP" = admin ] && [ -n "${ADMIN_BOOTSTRAP_EMAIL:-}" ]; then node packages/server/scripts/bootstrap-admin.mjs || true; fi
 cd "apps/${APP}"
 export NODE_ENV=production
 exec ./node_modules/.bin/next start -H 0.0.0.0 -p "${PORT:-10000}"

@@ -58,7 +58,19 @@ Sans `RESEND_API_KEY` : « mot de passe oublié » affiche qu'il n'est pas encor
 
 ## 2. Premier administrateur (une seule fois)
 
-La base est fermée à Internet. Le temps de cette opération :
+**Méthode simple : variables Render.** Service admin (`cer-console-…`) → **Environment** :
+
+| Variable | Valeur |
+|---|---|
+| `ADMIN_BOOTSTRAP_EMAIL` | adresse de l'administrateur (jamais celle d'un compte organisateur) |
+| `ADMIN_BOOTSTRAP_PASSWORD` | mot de passe de 12 à 72 caractères |
+| `ADMIN_BOOTSTRAP_NAME` | nom affiché (facultatif) |
+
+Enregistrez : au redémarrage, les journaux affichent « Administrateur principal créé ». Connectez-vous sur
+`https://<admin>/login` (le second facteur est demandé), puis **supprimez ces trois variables**. Elles n'agissent que
+tant qu'aucun administrateur n'existe : ensuite elles sont ignorées (ni mot de passe changé, ni compte ajouté).
+
+**Autre méthode : depuis votre PC.** La base est fermée à Internet. Le temps de cette opération :
 1. Render → `ceremonia-db` → **Access Control** : ajoutez votre adresse IP.
 2. Copiez l'**External Database URL** (Render → `ceremonia-db` → Connect). Ne la partagez avec personne.
 3. Sur votre PC, dans le dossier du projet (après `pnpm install`) :

@@ -20,7 +20,7 @@ export default async function EditEvent({ params }: { params: Promise<{ id: stri
         <p className="hint">De une à quatre photos. Au moins une photo est obligatoire pour envoyer les invitations : elles défilent en arrière-plan.</p>
         <PhotoManager eventId={id} photos={ev.photos.map((p) => ({ path: p, url: photoUrl(p) }))} />
       </section>
-      <EventForm action={updateEvent} eventId={id} initial={{ ...ev }} />
+      <EventForm action={updateEvent} owner={me.id} eventId={id} initial={{ ...ev }} />
     </>
   );
 }

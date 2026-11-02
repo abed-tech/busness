@@ -29,7 +29,7 @@ export default async function DraftSteps({ params }: { params: Promise<{ id: str
       <PageHeader eyebrow="Nouvel événement · non payé" title="Modifier les informations"
         sub="Vos informations sont conservées. Après l’enregistrement, vous retrouverez vos photos puis l’aperçu de l’invitation."
         actions={<a className="btn ghost sm" href={`/preview/${id}`}>Retour à l’aperçu</a>} />
-      <EventForm action={updateDraft} eventId={id} initial={{ ...ev }} draft={lists} price={price} />
+      <EventForm action={updateDraft} owner={me.id} eventId={id} initial={{ ...ev }} draft={lists} price={price} />
     </>
   );
 }

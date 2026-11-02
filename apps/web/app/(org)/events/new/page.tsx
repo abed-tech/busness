@@ -14,7 +14,7 @@ export default async function NewEvent() {
   return (
     <main className="org-main">
       <PageHeader eyebrow="Nouvel événement" title="Créer un événement" actions={<BackLink href="/events">Mes événements</BackLink>} />
-      <EventForm action={createEvent} price={price} />
+      <EventForm action={createEvent} owner={me.id} price={price} />
     </main>
   );
 }

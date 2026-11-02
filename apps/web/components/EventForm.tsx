@@ -35,7 +35,7 @@ export type DraftLists = { drinks: string; dishes: string; guests: string };
  * Formulaire d'événement : création écran par écran (avec listes et invités) ou modification sur une page.
  * Un brouillon non payé (draft) se modifie avec les mêmes écrans que la création, déjà remplis.
  */
-export function EventForm({ action, initial, eventId, price, draft }: { action: (p: ActionState, fd: FormData) => Promise<ActionState>; initial?: Initial; eventId?: string; price?: { cents: number; currency: string }; draft?: DraftLists }) {
+export function EventForm({ action, owner, initial, eventId, price, draft }: { action: (p: ActionState, fd: FormData) => Promise<ActionState>; owner: string; initial?: Initial; eventId?: string; price?: { cents: number; currency: string }; draft?: DraftLists }) {
   const creating = !eventId || !!draft;
   const [state, run, pending] = useActionState<ActionState, FormData>(action, null);
   const [type, setType] = useState(initial?.type || "mariage");
@@ -67,8 +67,9 @@ export function EventForm({ action, initial, eventId, price, draft }: { action: 
   const [snap, setSnap] = useState<Record<string, string>>({});
   const LAST = 6; // récapitulatif : dernier écran avant l'enregistrement
   const shown = (i: number) => !creating || step === i;
-  // saisie non enregistrée gardée dans le navigateur (actualisation, absence, nouvelle connexion)
-  const kept = useFormDraft(formRef, eventId ? (draft ? "draft:" : "edit:") + eventId : "new", step, setStep);
+  // saisie non enregistrée gardée dans le navigateur (actualisation, absence, nouvelle connexion), propre au compte :
+  // un autre organisateur sur le même navigateur ne la retrouve jamais
+  const kept = useFormDraft(formRef, `${owner}:` + (eventId ? (draft ? "draft:" : "edit:") + eventId : "new"), step, setStep);
   useEffect(() => { if (state && !state.ok) kept.save(); }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (kept.restored && formRef.current) setSnap(Object.fromEntries(Array.from(new FormData(formRef.current).entries()).map(([k, v]) => [k, String(v)])));
