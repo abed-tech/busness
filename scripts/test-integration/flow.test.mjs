@@ -7,7 +7,8 @@ import { createHmac } from "node:crypto"; import fs from "node:fs"; import path 
 const require = createRequire(import.meta.url);
 if (!process.env.DATABASE_URL) { console.log("DATABASE_URL absente : tests ignorés"); process.exit(0); }
 process.env.ORGANIZER_ORIGIN ||= "http://localhost:3000"; process.env.ADMIN_ORIGIN ||= "http://127.0.0.1:3100";
-process.env.DEV_PAYMENTS = "1"; process.env.SIGNUP_EMAIL_CONFIRMATION = "1"; // parcours avec confirmation (désactivée par défaut) process.env.STRIPE_WEBHOOK_SECRET = "whsec_integration"; process.env.DISABLE_SCHEDULER = "1";
+process.env.DEV_PAYMENTS = "1"; process.env.STRIPE_WEBHOOK_SECRET = "whsec_integration"; process.env.DISABLE_SCHEDULER = "1";
+process.env.SIGNUP_EMAIL_CONFIRMATION = "1"; // parcours avec confirmation (désactivée par défaut)
 const W = require("./.web.cjs"), A = require("./.admin.cjs");
 const S = W.server;
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -453,6 +454,10 @@ test("admin : mot de passe + second facteur, organisateur refusé, séparation d
   assert.equal(v.url, "/");
   const s = await A.lib.requireAdmin("finance.read"); assert.equal(s.role, "super"); assert.ok(s.perms.has("admins.manage"));
   const dash = await A.lib.rpc("admin_dashboard"); assert.equal(dash.ok, true, dash.message);
+  // administrateur principal : aucun privilège caché sur les événements et les invités
+  assert.ok(!["guests.read", "events.write", "events.delete"].some((p) => s.perms.has(p)), "permission de confidentialité présente");
+  const del = await A.lib.rpc("admin_delete_event", { p_event: EV, p_confirm_title: "x" }); assert.equal(del.ok, false);
+  assert.match(del.message, /y compris l.administrateur principal/);
   await redirected(A.authActions.logout()); assert.equal(A.stubs.jar.get("cer-adm"), undefined);
 });
 

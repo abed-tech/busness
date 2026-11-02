@@ -127,10 +127,12 @@ reset role; set role authenticated; select t_claims('00000000-0000-0000-0000-000
 insert into public.events (owner_id, title, event_date, venue, address, table_capacity, offer, expected)
 values ('00000000-0000-0000-0000-0000000000a1', 'Brouillon Abandonné', current_date + 90, 'S', 'A', 8, 'none', 40);
 insert into public.t_vars select 'abd', id::text from public.events where title = 'Brouillon Abandonné';
-select t_claims('00000000-0000-0000-0000-0000000000b1', 'aal2');
+reset role; -- l'administration ne lit pas la table des événements : le décompte de contrôle est fait par le propriétaire
+insert into public.t_vars select 'n_active', count(*)::text from public.events where status = 'active';
+set role authenticated; select t_claims('00000000-0000-0000-0000-0000000000b1', 'aal2');
 do $$ declare d jsonb := public.admin_dashboard(); l jsonb; begin
   assert (d -> 'events' ->> 'drafts')::int = 1, d::text;
-  assert (d -> 'events' ->> 'active')::int = (select count(*) from public.events where status = 'active');
+  assert (d -> 'events' ->> 'active')::int = (select v::int from public.t_vars where k = 'n_active'), d::text;
   l := public.admin_list_events();
   assert not exists (select 1 from jsonb_array_elements(l -> 'items') x where x ->> 'status' = 'draft'), 'brouillon dans la liste des événements';
   l := public.admin_list_events(p_status => 'draft');
@@ -141,8 +143,9 @@ do $$ declare d jsonb := public.admin_dashboard(); l jsonb; begin
 end $$;
 
 -- ---------- historique statistique des événements supprimés ----------
+select t_claims('00000000-0000-0000-0000-0000000000a1');
 do $$ declare e uuid := (select v::uuid from public.t_vars where k = 'sim'); r jsonb; begin
-  r := public.admin_delete_event(e, 'Noces Sim'); assert (r ->> 'ok')::boolean, r::text;
+  r := public.delete_my_event(e, 'Noces Sim'); assert (r ->> 'ok')::boolean, r::text;
 end $$;
 reset role;
 do $$ declare e uuid := (select v::uuid from public.t_vars where k = 'sim'); h public.event_history; begin

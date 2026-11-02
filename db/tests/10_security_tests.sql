@@ -109,22 +109,29 @@ reset role;
 do $$ begin assert (select count(*) from public.audit_log where result = 'denied' and actor_role = 'manager') = 2; perform t_ok('les refus sont inscrits au journal'); end $$;
 set role authenticated;
 
--- modérateur : événements oui, finances non, choix des invités non
+-- modérateur : événement offert à un organisateur oui ; finances, invités et événement « plateforme » non
 select t_claims('00000000-0000-0000-0000-0000000000b2', 'aal2');
 do $$ declare r jsonb; begin
   assert (public.admin_dashboard() -> 'finance') = 'null'::jsonb or (public.admin_dashboard() -> 'finance') is null, 'le modérateur voit les finances';
   assert (public.admin_transactions() ->> 'ok')::boolean = false;
-  assert (select count(*) from public.guests) = 4, 'le modérateur doit voir les invités (assistance)';
+  assert (select count(*) from public.guests) = 0, 'le modérateur voit les invités';
   assert (select count(*) from public.guest_orders) = 0, 'le modérateur voit les choix individuels';
-  select public.admin_create_event('{"mode":"platform","title":"Gala Plateforme","event_date":"2027-02-01","venue":"Hôtel","address":"Bd","table_capacity":10,"offer":"drinks","drinks":["Eau","Jus"]}') into r;
-  assert (r ->> 'ok')::boolean, r::text;
-  insert into public.t_vars values ('ep', r ->> 'id');
-  select public.admin_create_event(jsonb_build_object('mode','for_organizer','organizer_id','00000000-0000-0000-0000-0000000000a2','title','Anniversaire Offert','event_date','2027-03-01','venue','Salle','address','Av','table_capacity',8)) into r;
+  begin perform public.admin_create_event('{"mode":"platform","title":"Gala Plateforme","event_date":"2027-02-01","venue":"Hôtel","address":"Bd","table_capacity":10}'); raise exception 'ÉCHEC : événement plateforme créé';
+  exception when invalid_parameter_value then null; end;
+  select public.admin_create_event(jsonb_build_object('mode','for_organizer','organizer_id','00000000-0000-0000-0000-0000000000a2','title','Anniversaire Offert','event_date','2027-03-01','venue','Salle','address','Av','table_capacity',8,'organizer_can_manage',false)) into r;
   assert (r ->> 'ok')::boolean, r::text;
   insert into public.t_vars values ('eo', r ->> 'id');
-  perform t_ok('modérateur : création d''événements (plateforme et pour un organisateur), sans finances ni choix des invités');
+  perform t_ok('modérateur : événement offert à un organisateur, sans finances, invités ni événement géré par l''administration');
 end $$;
 reset role;
+-- événement de la plateforme déjà enregistré avant la règle de confidentialité : conservé tel quel
+insert into public.events (origin, billing, title, event_date, venue, address, table_capacity, offer)
+values ('admin_platform', 'free_admin', 'Gala Plateforme', '2027-02-01', 'Hôtel', 'Bd', 10, 'drinks');
+insert into public.t_vars select 'ep', id::text from public.events where title = 'Gala Plateforme';
+insert into public.catalog_items (event_id, kind, name) select v::uuid, 'drink', d from public.t_vars, unnest(array['Eau', 'Jus']) d where k = 'ep';
+do $$ begin
+  assert (select organizer_can_manage from public.events where id = (select v::uuid from public.t_vars where k = 'eo')), 'l''organisateur doit toujours gérer l''événement offert';
+end $$;
 do $$ begin
   assert (select billing from public.events where id = (select v::uuid from public.t_vars where k = 'ep')) = 'free_admin';
   assert (select owner_id is null and organizer_id = '00000000-0000-0000-0000-0000000000a2' and origin = 'admin_for_organizer' from public.events where id = (select v::uuid from public.t_vars where k = 'eo'));
@@ -294,9 +301,16 @@ exception when invalid_authorization_specification then perform t_ok('accès ré
 reset role; set role authenticated;
 select t_claims('00000000-0000-0000-0000-0000000000b1', 'aal2');
 do $$ declare r jsonb; e uuid := (select v::uuid from public.t_vars where k = 'e1'); begin
-  r := public.admin_delete_event(e, 'Mauvais titre'); assert r ->> 'error' = 'confirmation';
-  r := public.admin_delete_event(e, 'Mariage Un'); assert (r ->> 'ok')::boolean, r::text;
-  perform t_ok('suppression après confirmation du titre');
+  r := public.admin_delete_event(e, 'Mariage Un'); assert r ->> 'error' = 'forbidden', r::text;
+  assert (select status from public.events where id = e) is null, 'l''administrateur principal lit l''événement directement';
+  perform t_ok('l''administrateur principal ne peut pas supprimer un événement');
+end $$;
+select t_claims('00000000-0000-0000-0000-0000000000a1');
+do $$ declare r jsonb; e uuid := (select v::uuid from public.t_vars where k = 'e1'); begin
+  begin perform public.delete_my_event(e, 'Mauvais titre'); raise exception 'ÉCHEC';
+  exception when invalid_parameter_value then null; end;
+  r := public.delete_my_event(e, 'Mariage Un'); assert (r ->> 'ok')::boolean, r::text;
+  perform t_ok('suppression par l''organisateur après confirmation du titre');
 end $$;
 reset role;
 do $$ declare e uuid := (select v::uuid from public.t_vars where k = 'e1'); begin
@@ -305,7 +319,8 @@ do $$ declare e uuid := (select v::uuid from public.t_vars where k = 'e1'); begi
   assert (select count(*) from public.transactions where event_id = e) = 2, 'transactions perdues';
   assert (select count(*) from public.payment_events) = 3, 'preuves de paiement perdues (dont le webhook au montant incorrect)';
   assert (select status from public.events where id = e) = 'deleted';
-  assert (select count(*) from public.audit_log where action = 'event.delete') = 1;
+  assert (select count(*) from public.audit_log where action = 'event.delete_owner' and result = 'success') = 1;
+  assert (select count(*) from public.audit_log where action = 'event.delete' and result = 'denied' and actor_role = 'super') = 1;
   perform t_ok('données opérationnelles supprimées ; transactions, preuves et journal conservés');
 end $$;
 

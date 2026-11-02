@@ -129,8 +129,9 @@ select t_claims('00000000-0000-0000-0000-0000000000b1', 'aal2');
 select public.admin_update_setting('event_price', '{"currency":"USD","cents":2000}');
 
 -- ---------- trace conservée : nombre d'invitations générées ----------
+select t_claims('00000000-0000-0000-0000-0000000000a1');
 do $$ declare r jsonb; begin
-  r := public.admin_delete_event((select v::uuid from public.t_vars where k = 'flat'), 'Gala Unique'); assert (r ->> 'ok')::boolean, r::text;
+  r := public.delete_my_event((select v::uuid from public.t_vars where k = 'flat'), 'Gala Unique'); assert (r ->> 'ok')::boolean, r::text;
 end $$;
 reset role;
 do $$ declare h public.event_history; begin

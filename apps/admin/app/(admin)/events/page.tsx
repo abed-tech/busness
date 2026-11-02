@@ -17,7 +17,7 @@ export default async function EventsPage({ searchParams }: { searchParams: Promi
   return (
     <>
       <PageHeader eyebrow="Gestion" title="Événements" sub={sp.status === "draft" ? "Créations non payées : elles ne sont pas des événements actifs et n’ouvrent aucune invitation." : undefined}
-        actions={s.perms.has("events.create") ? <Link className="btn" href="/events/new">+ Créer un événement</Link> : null} />
+        actions={s.perms.has("events.create") ? <Link className="btn" href="/events/new">+ Offrir un événement</Link> : null} />
       <form className="sticky-tools" role="search">
         <input className="in" name="q" defaultValue={sp.q || ""} placeholder="Rechercher un titre, un lieu ou un identifiant" aria-label="Rechercher" />
         <select className="in" name="status" defaultValue={sp.status || ""} aria-label="Statut" style={{ flex: "0 0 190px" }}>

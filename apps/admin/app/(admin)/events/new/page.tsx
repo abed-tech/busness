@@ -6,7 +6,7 @@ export default async function NewEventPage() {
   await requireAdmin("events.create");
   return (
     <>
-      <PageHeader eyebrow="Événements" title="Créer un événement" sub="Création gratuite par l’administration : aucun paiement n’est déclenché et aucun revenu n’est enregistré." />
+      <PageHeader eyebrow="Événements" title="Offrir un événement" sub="Création gratuite pour le compte d’un organisateur : aucun paiement n’est déclenché, aucun revenu n’est enregistré, et seul l’organisateur gère ensuite l’événement." />
       <NewEventForm />
     </>
   );

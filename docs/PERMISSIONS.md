@@ -17,12 +17,9 @@ avec un rôle insuffisant est refusé par la base et inscrit au journal (`result
 | Permission | Administrateur principal | Modérateur | Gestionnaire |
 |---|:-:|:-:|:-:|
 | `dashboard.read` — tableau de bord | ✔ | ✔ | ✔ |
-| `events.read` — liste et détail des événements | ✔ | ✔ | ✔ |
-| `events.create` — créer un événement gratuit | ✔ | ✔ | — |
-| `events.write` — modifier, invités, tables | ✔ | ✔ | — |
-| `events.suspend` — suspendre / réactiver | ✔ | ✔ | — |
-| `events.delete` — supprimer (confirmation par le titre) | ✔ | ✔ | — |
-| `guests.read` — liste des invités (noms, contacts, tables) | ✔ | ✔ | — |
+| `events.read` — liste et fiche des événements (métadonnées et totaux seulement) | ✔ | ✔ | ✔ |
+| `events.create` — offrir un événement à un organisateur (qui seul le gère ensuite) | ✔ | ✔ | — |
+| `events.suspend` — suspendre (motif obligatoire, journalisé) / réactiver | ✔ | ✔ | — |
 | `organizers.read` — comptes organisateurs | ✔ | ✔ | ✔ |
 | `organizers.suspend` — suspendre / réactiver un compte | ✔ | ✔ | — |
 | `finance.read` — transactions, revenus, montants | ✔ | — | ✔ |
@@ -37,11 +34,29 @@ avec un rôle insuffisant est refusé par la base et inscrit au journal (`result
 Le Gestionnaire n’a **aucune** permission d’écriture : il lit les statistiques et les rapports.
 Le Modérateur ne voit **aucun** montant : les fonctions retirent les champs financiers quand `finance.read` manque.
 
-## Données jamais visibles par l’administration
+## Confidentialité : aucun privilège caché, administrateur principal compris
 
-Les choix privés des invités (boissons et plats commandés, table `guest_orders`) ne sont lisibles que par
-l’organisateur de l’événement (`orders_owner_read`). L’administration voit seulement des **totaux** par table.
-Les mots de passe des contrôleurs et serveurs ne sont jamais sélectionnables (droits par colonne).
+Migration `20261102002000_admin_privacy.sql`, tests `db/tests/17_admin_privacy.sql`. Pour **tous** les rôles
+d’administration, y compris l’administrateur principal avec son second facteur, la base refuse :
+
+| Interdit | Comment c’est imposé |
+|---|---|
+| Consulter les invités, leurs réponses, choix, entrées et prestations | règles RLS de `guests`, `guest_orders`, `entries`, `services` : organisateur uniquement |
+| Consulter les invitations (adresse, message, programme, tenue, hôtes, photos, liens, QR) | `events_read` et `can_read_event` : organisateur uniquement ; `admin_event_detail` ne renvoie que titre, date, lieu, statut, origine et totaux |
+| Modifier ou supprimer un événement, ses invités, tables, accès du jour J, photos | `can_write_event` : organisateur uniquement ; `admin_update_event` et `admin_delete_event` refusent et journalisent (`details.rule = 'admin_privacy'`) |
+| Agir dans le compte d’un organisateur, usurper sa session | aucune fonction ne le permet ; les rôles clients n’ont aucun droit sur le schéma `auth` |
+| Lire mots de passe, sessions, secrets du second facteur, jetons | schéma `auth` fermé ; `staff_accounts.password_hash` et `staff_sessions` non sélectionnables |
+
+Les permissions `guests.*`, `events.write`, `events.delete`, `auth.*` et `impersonate*` sont interdites par
+`private.privacy_forbidden` : `private.has_perm` les refuse même si elles figurent dans la table, et un déclencheur
+empêche de les rendre à un rôle (y compris par une migration). Les lignes retirées sont sauvegardées dans
+`private.role_permissions_removed`.
+
+**Opérations d’exception** : la suspension d’un événement ou d’un compte exige le second facteur et un motif, est
+journalisée, et ne donne accès à aucune donnée privée. Un événement offert est créé pour le compte d’un organisateur,
+qui seul le gère ensuite ; les événements « de la plateforme » déjà enregistrés sont conservés tels quels.
+
+L’administration voit seulement des **totaux** (invitations, personnes, présents, boissons et plats par table).
 
 ## Règles de séparation
 
@@ -56,7 +71,8 @@ Les mots de passe des contrôleurs et serveurs ne sont jamais sélectionnables (
 ## Modifier la matrice
 
 Écrire une nouvelle migration (`insert` / `delete` sur `role_permissions`), mettre à jour ce document et
-`apps/admin/lib/perms.ts` (miroir d’affichage), puis relancer `db/tests/run.sh`.
+`apps/admin/lib/perms.ts` (miroir d’affichage), puis relancer `db/tests/run.sh`. Les permissions de confidentialité
+ci-dessus ne peuvent pas être ajoutées.
 
 ## Espace organisateur, invités et personnel
 

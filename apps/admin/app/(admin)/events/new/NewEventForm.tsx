@@ -1,8 +1,7 @@
 "use client";
-import { useActionState, useMemo, useState, useTransition } from "react";
-import { parseGuests, tableCount, KIND_LABEL } from "@ceremonia/core";
+import { useActionState, useState, useTransition } from "react";
+import { tableCount } from "@ceremonia/core";
 import { createEvent, searchOrganizers } from "../actions";
-import { readGuestFile } from "@/lib/client/readGuestFile";
 import type { ActionState } from "@/components/ConfirmAction";
 
 const TYPES: Record<string, { label: string; a: string; b?: string; cap: number }> = {
@@ -16,32 +15,23 @@ const TYPES: Record<string, { label: string; a: string; b?: string; cap: number 
 
 export function NewEventForm() {
   const [state, run, pending] = useActionState<ActionState, FormData>(createEvent, null);
-  const [mode, setMode] = useState<"platform" | "for_organizer">("platform");
   const [type, setType] = useState("mariage");
   const [cap, setCap] = useState(10);
   const [expected, setExpected] = useState(0);
   const [offer, setOffer] = useState("both");
-  const [guests, setGuests] = useState("");
-  const [fileErr, setFileErr] = useState("");
   const [q, setQ] = useState("");
   const [orgs, setOrgs] = useState<{ id: string; username: string; email: string | null }[]>([]);
   const [org, setOrg] = useState<{ id: string; username: string } | null>(null);
   const [searching, startSearch] = useTransition();
   const T = TYPES[type];
-  const parsed = useMemo(() => (guests.trim() ? parseGuests(guests, "+243") : null), [guests]);
-  const persons = parsed ? parsed.rows.reduce((a, r) => a + (r.kind === "couple" ? 2 : 1), 0) : 0;
-  const tc = cap > 0 ? tableCount({ table_capacity: cap, expected, extra_tables: 0 }, parsed ? parsed.rows.map((r) => ({ kind: r.kind || null })) : []) : 0;
+  const tc = cap > 0 ? tableCount({ table_capacity: cap, expected, extra_tables: 0 }, []) : 0;
 
   return (
     <form action={run} className="form" style={{ maxWidth: 860 }}>
       <section className="card form">
-        <h2>Mode de création</h2>
-        <div className="choice" role="radiogroup" aria-label="Mode">
-          <label><input type="radio" name="mode" value="platform" checked={mode === "platform"} onChange={() => setMode("platform")} /><span><b>Événement de la plateforme</b><small>Géré par l’administration, sans organisateur.</small></span></label>
-          <label><input type="radio" name="mode" value="for_organizer" checked={mode === "for_organizer"} onChange={() => setMode("for_organizer")} /><span><b>Pour le compte d’un organisateur</b><small>Associé explicitement à son compte, sans transfert de propriété.</small></span></label>
-        </div>
-        {mode === "for_organizer" && (
-          <div className="form">
+        <h2>Organisateur</h2>
+        <p className="hint">L’événement est offert à un organisateur, qui seul ajoute ses invités et le gère depuis son espace. L’administration n’y a plus accès ensuite.</p>
+        <div className="form">
             <div className="fld">
               <label htmlFor="orgq">Organisateur concerné</label>
               <div className="row">
@@ -56,9 +46,7 @@ export function NewEventForm() {
               {org && <div className="notice ok">Associé à <b>{org.username}</b> <button type="button" className="btn sm ghost" onClick={() => setOrg(null)}>Changer</button></div>}
               <input type="hidden" name="organizer_id" value={org?.id || ""} />
             </div>
-            <label className="row"><input type="checkbox" name="organizer_can_manage" defaultChecked /> L’organisateur peut gérer cet événement depuis son espace</label>
-          </div>
-        )}
+        </div>
       </section>
 
       <section className="card form">
@@ -107,29 +95,8 @@ export function NewEventForm() {
         </div>
       </section>
 
-      <section className="card form">
-        <h2>Invités</h2>
-        <p className="hint">Ajoutez une personne par ligne, collez une liste ou importez un fichier Excel (.xlsx) ou CSV. Colonnes possibles : Nom ; Statut ; WhatsApp ; Table.</p>
-        <div className="fld"><label htmlFor="guests">Liste</label><textarea id="guests" name="guests" value={guests} onChange={(e) => setGuests(e.target.value)} style={{ minHeight: 160 }} placeholder={"Mr Luc ; Monsieur ; +243 81 000 0001\nCouple Bola ; Couple ; 081 000 0002"} /></div>
-        <div className="row">
-          <label className="btn ghost sm" style={{ position: "relative" }}>Importer un fichier
-            <input type="file" accept=".xlsx,.csv,.txt,.tsv" style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer" }}
-              onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (!f) return; setFileErr(""); try { setGuests(await readGuestFile(f)); } catch (er) { setFileErr((er as Error).message); } }} />
-          </label>
-          {fileErr && <span className="badge bad">{fileErr}</span>}
-        </div>
-        {parsed && (
-          <div className={"notice " + (parsed.rows.length ? "ok" : "bad")}>
-            <b>{parsed.rows.length} invitation(s)</b> · {persons} personne(s)
-            {parsed.rows.slice(0, 4).map((r, i) => <div key={i} className="hint">{r.name} · {r.kind ? KIND_LABEL[r.kind] : "statut à préciser"}{r.whatsapp ? " · " + r.whatsapp : ""}</div>)}
-            {parsed.issues.length > 0 && <div className="hint" style={{ color: "var(--warn)" }}>{parsed.issues.length} remarque(s) : {parsed.issues.slice(0, 2).join(" ")}</div>}
-          </div>
-        )}
-        <label className="row"><input type="checkbox" name="auto" defaultChecked /> Attribuer automatiquement les places après la création</label>
-      </section>
-
       {state?.message && <div className={"notice " + (state.ok ? "ok" : "bad")} role="alert">{state.message}</div>}
-      <div className="row"><button className="btn" type="submit" disabled={pending || (mode === "for_organizer" && !org)}>{pending ? "Création…" : "Créer l’événement gratuitement"}</button></div>
+      <div className="row"><button className="btn" type="submit" disabled={pending || !org}>{pending ? "Création…" : "Offrir l’événement à cet organisateur"}</button></div>
     </form>
   );
 }
