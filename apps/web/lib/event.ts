@@ -38,6 +38,30 @@ export async function loadCatalog(eventId: string): Promise<CatalogItem[]> {
   return (data || []) as CatalogItem[];
 }
 
+export interface OrderTotal { id: string; name: string; qty: number }
+
+/**
+ * Quantité totale commandée pour chaque boisson (ou plat) de la liste, par les invités ayant confirmé leur présence.
+ * Triée de la plus commandée à la moins commandée ; les éléments jamais choisis restent présents avec 0.
+ */
+export async function loadOrderTotals(eventId: string, kind: "drink" | "dish"): Promise<OrderTotal[]> {
+  const sb = await serverClient();
+  const [items, { data: orders }, { data: guests }] = await Promise.all([
+    loadCatalog(eventId),
+    sb.from("guest_orders").select("guest_id, drinks, dishes").eq("event_id", eventId),
+    sb.from("guests").select("id").eq("event_id", eventId).eq("rsvp", "yes"),
+  ]);
+  const confirmed = new Set(((guests || []) as { id: string }[]).map((g) => g.id));
+  const qty = new Map<string, number>();
+  for (const o of (orders || []) as { guest_id: string; drinks: string[]; dishes: string[] }[]) {
+    if (!confirmed.has(o.guest_id)) continue;
+    for (const itemId of (kind === "drink" ? o.drinks : o.dishes) || []) qty.set(itemId, (qty.get(itemId) || 0) + 1);
+  }
+  return items.filter((c) => c.kind === kind)
+    .map((c) => ({ id: c.id, name: c.name, qty: qty.get(c.id) || 0 }))
+    .sort((a, b) => b.qty - a.qty || a.name.localeCompare(b.name, "fr"));
+}
+
 /** Indication d'interface seulement : la base revérifie chaque écriture. Un brouillon (non payé) reste modifiable par son créateur. */
 export function canWrite(ev: EventRow, me: Organizer): boolean {
   return (ev.status === "active" || ev.status === "draft") && me.status === "active" && (ev.owner_id === me.id || (ev.organizer_id === me.id && ev.organizer_can_manage));

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { requireOrganizer, rpc } from "@/lib/auth";
-import { loadEvent } from "@/lib/event";
+import { loadEvent, loadOrderTotals } from "@/lib/event";
 import { PageHeader, Empty, Bar, Notice } from "@/components/ui";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { offersDrinks, offersFood } from "@/lib/format";
@@ -16,6 +16,7 @@ export default async function Tracking({ params }: { params: Promise<{ id: strin
   const d = kind === "drinks";
   const p = st.ok ? st.data[kind] : null;
   const offered = d ? offersDrinks(ev.offer) : offersFood(ev.offer);
+  const totals = offered ? await loadOrderTotals(id, d ? "drink" : "dish") : [];
   return (
     <>
       <PageHeader eyebrow="Jour J" title={d ? "Suivi boissons" : "Suivi plats"} sub="Une prestation est comptée quand un serveur la valide en scannant le QR code de l’invité." />
@@ -29,6 +30,19 @@ export default async function Tracking({ params }: { params: Promise<{ id: strin
           </div>
           <Bar value={p.served} max={p.planned} />
           <AutoRefresh seconds={5} />
+          {totals.length > 0 && (
+            <section style={{ marginTop: 14 }}>
+              <h3 style={{ margin: "0 0 6px" }}>{d ? "Total par boisson" : "Total par plat"}</h3>
+              <div className="list">
+                {totals.map((t) => (
+                  <div key={t.id} className="li">
+                    <span>{t.name}</span>
+                    <b>{t.qty}</b>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
           {!p.by_table.length ? <Empty>Aucune commande confirmée.</Empty> : (
             <div className="tables-grid" style={{ marginTop: 14 }}>
               {p.by_table.map((t) => (

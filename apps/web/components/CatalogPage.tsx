@@ -1,6 +1,5 @@
 import { requireOrganizer } from "@/lib/auth";
-import { loadEvent, loadCatalog, canWrite } from "@/lib/event";
-import { serverClient } from "@/lib/data/server";
+import { loadEvent, loadCatalog, loadOrderTotals, canWrite } from "@/lib/event";
 import { PageHeader, Empty, Notice } from "@/components/ui";
 import { ActionForm } from "@/components/ActionForm";
 import { ConfirmAction } from "@/components/ConfirmAction";
@@ -16,9 +15,10 @@ export async function CatalogPage({ id, kind, q }: { id: string; kind: "drink" |
   const me = await requireOrganizer();
   const ev = await loadEvent(id);
   const items = (await loadCatalog(id)).filter((c) => c.kind === kind);
-  const sb = await serverClient();
-  const { data: orders } = await sb.from("guest_orders").select("drinks, dishes").eq("event_id", id);
-  const count = (itemId: string) => (orders || []).reduce((s: number, o: { drinks: string[]; dishes: string[] }) => s + (kind === "drink" ? o.drinks : o.dishes).filter((x) => x === itemId).length, 0);
+  const totals = await loadOrderTotals(id, kind);
+  const qty = new Map(totals.map((t) => [t.id, t.qty]));
+  const count = (itemId: string) => qty.get(itemId) || 0;
+  const total = totals.reduce((s, t) => s + t.qty, 0);
   const offered = kind === "drink" ? offersDrinks(ev.offer) : offersFood(ev.offer);
   const write = canWrite(ev, me);
   const L = kind === "drink" ? { title: "Boissons", one: "boisson", path: "drinks" } : { title: "Plats", one: "plat", path: "buffet" };
@@ -28,6 +28,11 @@ export async function CatalogPage({ id, kind, q }: { id: string; kind: "drink" |
     <>
       <PageHeader eyebrow="Préparer" title={L.title} sub={`Chaque invité choisit une ${L.one === "plat" ? "assiette" : "boisson"} par personne dans cette liste.`} />
       {!offered && <Notice>Les invités ne choisissent pas de {L.one} pour cet événement. Changez « Ce que les invités choisissent » dans Modifier l’événement pour l’activer.</Notice>}
+      {offered && items.length > 0 && (
+        <p className="hint" style={{ margin: "0 0 10px" }}>
+          <b>{total}</b> {L.one === "boisson" ? (total > 1 ? "boissons commandées" : "boisson commandée") : (total > 1 ? "plats commandés" : "plat commandé")} au total par les invités ayant confirmé.
+        </p>
+      )}
       <SearchAdd q={q} placeholder={`Rechercher un${L.one === "boisson" ? "e boisson" : " plat"}`} addHref={write ? `/events/${id}/${L.path}/new` : undefined} addLabel={`Ajouter des ${L.title.toLowerCase()}`} />
       {!items.length ? <Empty>La liste est vide.{write && <> Touchez « + » pour l’alimenter.</>}</Empty> : !shown.length ? <Empty>Aucun élément ne correspond.</Empty> : (
         <div className="list">
@@ -38,7 +43,7 @@ export async function CatalogPage({ id, kind, q }: { id: string; kind: "drink" |
                   <input className="in" name="name" defaultValue={it.name} maxLength={80} aria-label={`Nom de ${it.name}`} />
                 </ActionForm>
               ) : <b>{it.name}</b>}
-              <span className="row"><span className="hint">{count(it.id)} choix</span>
+              <span className="row"><span className="hint" title="Quantité commandée par les invités ayant confirmé"><b>{count(it.id)}</b> commandé{L.one === "boisson" ? "e" : ""}{count(it.id) > 1 ? "s" : ""}</span>
                 {write && <ConfirmAction action={deleteItem} danger label="Supprimer" title={`Supprimer « ${it.name} » ?`} body="Les invités ne pourront plus le choisir." confirmLabel="Supprimer" hidden={{ event_id: id, item_id: it.id }} />}
               </span>
             </div>
