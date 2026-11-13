@@ -16,7 +16,7 @@ export default async function Tracking({ params }: { params: Promise<{ id: strin
   const d = kind === "drinks";
   const p = st.ok ? st.data[kind] : null;
   const offered = d ? offersDrinks(ev.offer) : offersFood(ev.offer);
-  const totals = offered ? await loadOrderTotals(id, d ? "drink" : "dish") : [];
+  const totals = offered ? (await loadOrderTotals(id, d ? "drink" : "dish")).filter((t) => t.qty > 0) : [];
   return (
     <>
       <PageHeader eyebrow="Jour J" title={d ? "Suivi boissons" : "Suivi plats"} sub="Une prestation est comptée quand un serveur la valide en scannant le QR code de l’invité." />
