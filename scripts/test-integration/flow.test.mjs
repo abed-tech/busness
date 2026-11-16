@@ -367,7 +367,7 @@ test("tables : bouton flottant, placement manuel puis automatique, détail d'une
   assert.deepEqual(await hrefs(W.tablesOrganiserPage(PS({}))), [`/events/${EV}/tables/placer`, `/events/${EV}/tables/permuter`], "deux choix exactement");
   assert.deepEqual(await hrefs(W.tablesPlacerPage(PS({}))), [`/events/${EV}/tables/auto`, `/events/${EV}/tables/manuel`]);
   // placement manuel
-  assert.equal((await render(W.tablesManualPage(PS({})))).filter((n) => n.type === "a" && /pickrow/.test(n.props?.className || "")).length, 3, "trois invitations non placées");
+  assert.equal((await render(W.tablesManualPage(PS({})))).filter((n) => n.type === "input" && n.props?.type === "checkbox").length, 3, "trois invitations non placées, chacune avec sa case à cocher");
   assert.deepEqual(await proposed(bola.id), ["1", "2"], "tables vides proposées");
   let r = await place(bola.id, 1);
   assert.equal(r.url, `/events/${EV}/tables/manuel?placed=${bola.id}&t=1`, "retour à la liste des non placés");
@@ -400,6 +400,47 @@ test("tables : bouton flottant, placement manuel puis automatique, détail d'une
   assert.ok((await tableOf(luc.id)) > 0, "invité placé automatiquement");
   assert.deepEqual([await tableOf(bola.id), await tableOf(lucie.id)], [2, 1], "placements existants conservés");
   assert.ok(texts(await render(W.tablesAutoResultPage(PS({ placed: "1" })))).includes("Mr Luc"), "tables et invités affichés");
+});
+
+test("tables : placement manuel groupé (sélection multiple), capacité jamais dépassée, tout ou rien", async () => {
+  const PS = (sp, o = {}) => ({ params: Promise.resolve({ id: EV, ...o }), searchParams: Promise.resolve(sp) });
+  const tableOf = async (gid) => (await W.loadGuests(EV)).find((g) => g.id === gid).table_no || 0;
+  const many = (ids, table) => redirected(W.tables.placeGuests(null, fdOf({ event_id: EV, table: String(table), guest_ids: ids })));
+  // départ connu : 3 places par table, 2 tables, tout le monde sans table
+  for (const g of await W.loadGuests(EV)) if (g.table_no) assert.equal((await W.tables.moveGuest(null, fdOf({ event_id: EV, guest_id: g.id, table: "0" }))).ok, true);
+  const all = await W.loadGuests(EV);
+  const [luc, bola, lucie] = ["Mr Luc", "Couple Bola", "Mme Lucie"].map((n) => all.find((g) => g.name === n));
+  // la page transmet les invités non placés et les tables avec leurs places
+  const mp = (await render(W.tablesManualPage(PS({})))).find((n) => Array.isArray(n.props?.guests) && Array.isArray(n.props?.tables));
+  assert.equal(mp.props.guests.length, 3);
+  assert.deepEqual(mp.props.tables.map((t) => [t.n, t.cap, t.used, t.free]), [[1, 3, 0, 3], [2, 3, 0, 3]], "capacité, occupées, restantes");
+  assert.equal(mp.props.guests.find((g) => g.id === bola.id).seats, 2, "un couple compte 2 places");
+  // dépassement : 4 places pour 3 → refusé, rien n'est placé
+  let r = await many([luc.id, bola.id, lucie.id], 1);
+  assert.equal(r.value?.ok, false); assert.match(r.value.message, /que 3 place/);
+  assert.deepEqual([await tableOf(luc.id), await tableOf(bola.id), await tableOf(lucie.id)], [0, 0, 0], "tout ou rien");
+  // sélection vide, table invalide, invité étranger
+  assert.match((await many([], 1)).value?.message || "", /au moins un invité/);
+  assert.match((await many([luc.id], 0)).value?.message || "", /table de destination/);
+  assert.match((await many([luc.id], 99)).value?.message || "", /n’existe pas/);
+  assert.match((await many(["00000000-0000-4000-8000-000000000000"], 1)).value?.message || "", /n’appartient pas/);
+  // deux invités (3 places) en une fois → table 1 complète, retour à la liste mise à jour avec confirmation
+  r = await many([luc.id, bola.id], 1);
+  assert.equal(r.url, `/events/${EV}/tables/manuel?many=2&t=1`);
+  assert.deepEqual([await tableOf(luc.id), await tableOf(bola.id)], [1, 1], "affectations enregistrées");
+  const after = await render(W.tablesManualPage(PS({ many: "2", t: "1" })));
+  assert.ok(texts(after).some((t) => /invitations placées/.test(t)), "confirmation affichée");
+  const mp2 = after.find((n) => Array.isArray(n.props?.guests) && Array.isArray(n.props?.tables));
+  assert.deepEqual(mp2.props.guests.map((g) => g.id), [lucie.id], "liste actualisée");
+  assert.deepEqual(mp2.props.tables.map((t) => t.n), [2], "table complète plus proposée");
+  // déjà placé (page périmée) et table complète : refusés
+  assert.match((await many([luc.id], 2)).value?.message || "", /Déjà placé/);
+  r = await many([lucie.id], 1);
+  assert.equal(r.value?.ok, false); assert.equal(await tableOf(lucie.id), 0, "table complète : rien enregistré");
+  // dernier invité : retour à la page des tables avec confirmation
+  r = await many([lucie.id], 2);
+  assert.equal(r.url, `/events/${EV}/tables?many=1&t=2`);
+  assert.ok(texts(await render(W.tablesPage(PS({ many: "1", t: "2" })))).some((t) => /Tous les invités ont maintenant une table/.test(t)));
 });
 
 test("aperçu : même composant que l'invitation, formule d'appel, aucun élément de l'espace de gestion", async () => {

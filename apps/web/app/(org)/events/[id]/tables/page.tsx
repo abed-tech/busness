@@ -9,7 +9,7 @@ import { plur } from "@/lib/format";
 import { changeTables } from "./actions";
 
 /** Tables de l'événement : chaque carte ouvre le détail de la table ; le bouton flottant ouvre le placement et la permutation. */
-export default async function Tables({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ complete?: string; t?: string; swapped?: string }> }) {
+export default async function Tables({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ complete?: string; t?: string; swapped?: string; many?: string }> }) {
   const { id } = await params;
   const sp = await searchParams;
   const { ev, guests, tables, unplaced, write } = await tableData(id);
@@ -22,6 +22,7 @@ export default async function Tables({ params, searchParams }: { params: Promise
     <>
       <PageHeader eyebrow="Préparer" title="Tables" sub={`${plur(tc, "table")} de ${ev.table_capacity} places · ${plur(free, "place libre", "places libres")} · ${plur(unplaced.length, "invitation")} sans table`} />
       {name(sp.complete) && <Notice tone="ok">{name(sp.complete)} placé(e) avec succès à la table {sp.t}. Tous les invités ont maintenant une table.</Notice>}
+      {Number(sp.many) > 0 && !unplaced.length && <Notice tone="ok">{plur(Number(sp.many), "invitation placée", "invitations placées")} avec succès à la table {sp.t}. Tous les invités ont maintenant une table.</Notice>}
       {name(sa) && name(sb) && <Notice tone="ok">Permutation enregistrée : {name(sa)} et {name(sb)} ont échangé leurs places.</Notice>}
       {!guests.length ? <Empty>Ajoutez d’abord des invités.</Empty> : (
         <>

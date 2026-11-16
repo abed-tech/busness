@@ -1,7 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { checkMoves, planSeating, tableCount, type Guest, type Plan } from "@ceremonia/core";
+import { checkMoves, planSeating, seats, tableCount, type Guest, type Plan } from "@ceremonia/core";
 import { requireOrganizer, humanError } from "@/lib/auth";
 import { serverClient } from "@/lib/data/server";
 import { runAutoAssign } from "@/lib/guests";
@@ -145,6 +145,45 @@ export async function placeGuest(_: ActionState, fd: FormData): Promise<ActionSt
   if (move) redirect(`${base(id)}/${t}?moved=${gid}`);
   const left = guests.filter((x) => x.id !== gid && !x.table_no).length;
   redirect(left ? `${base(id)}/manuel?placed=${gid}&t=${t}` : `${base(id)}?complete=${gid}&t=${t}`);
+}
+
+/**
+ * Placement manuel groupé : plusieurs invités sans table, tous à la même table, en une seule opération.
+ * Revérifié sur les données du moment (invités de l'événement, toujours sans table, table existante, places suffisantes),
+ * puis enregistré en une seule transaction : la base recompte sous verrou et refuse tout dépassement (rien n'est placé).
+ */
+export async function placeGuests(_: ActionState, fd: FormData): Promise<ActionState> {
+  await requireOrganizer();
+  const id = String(fd.get("event_id"));
+  const t = Number(fd.get("table"));
+  const ids = [...new Set(fd.getAll("guest_ids").map(String))];
+  if (!UUID.test(id)) return { ok: false, message: "Événement introuvable." };
+  if (!Number.isInteger(t) || t < 1) return { ok: false, message: "Choisissez une table de destination." };
+  if (!ids.length) return { ok: false, message: "Sélectionnez au moins un invité." };
+  if (ids.length > 500 || !ids.every((g) => UUID.test(g))) return { ok: false, message: "Sélection invalide." };
+  const { sb, ev, guests } = await ctx(id);
+  if (!ev) return { ok: false, message: "Événement introuvable." };
+  const picked = ids.map((g) => guests.find((x) => x.id === g));
+  if (picked.some((g) => !g)) return { ok: false, message: "Un invité sélectionné n’appartient pas (ou plus) à cet événement. Actualisez la page." };
+  const sel = picked as Guest[];
+  const taken = sel.filter((g) => g.table_no);
+  if (taken.length) return { ok: false, message: `Déjà placé(e) entre-temps : ${taken.map((g) => `${g.name} (table ${g.table_no})`).join(", ")}. Actualisez la page puis refaites la sélection.` };
+  if (t > tableCount(ev, guests)) return { ok: false, message: `La table ${t} n’existe pas.` };
+  const need = sel.reduce((s, g) => s + seats(g), 0);
+  const free = ev.table_capacity - guests.filter((g) => g.table_no === t).reduce((s, g) => s + seats(g), 0);
+  if (need > free) return { ok: false, message: `La table ${t} n’a que ${Math.max(0, free)} place(s) libre(s) pour ${need} place(s) demandée(s) (elle vient peut-être d’être complétée). Rien n’a été placé.` };
+  const plan: Plan = Object.fromEntries(sel.map((g) => [g.id, t]));
+  const errs = checkMoves(ev, guests, plan);
+  if (errs.length) return { ok: false, message: `${errs.join(" ")} Rien n’a été placé.` };
+  const { error } = await sb.rpc("save_table_plan", { p_event: id, p_plan: plan, p_manual: true, p_label: `${sel.length} invitation(s) placée(s) à la table ${t}` });
+  if (error) {
+    return { ok: false, message: error.code === "23514"
+      ? `La table ${t} n’a plus assez de places (elle vient d’être complétée). Rien n’a été placé : choisissez une autre table.`
+      : `Le placement n’a pas été enregistré : ${humanError(error.message, error.code)}` };
+  }
+  revalidatePath(`/events/${id}`, "layout");
+  const left = guests.filter((x) => !x.table_no && !(x.id in plan)).length;
+  redirect(left ? `${base(id)}/manuel?many=${sel.length}&t=${t}` : `${base(id)}?many=${sel.length}&t=${t}`);
 }
 
 /** Permutation confirmée de deux invités placés sur des tables différentes ; rien n'est enregistré si la vérification échoue. */

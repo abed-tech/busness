@@ -6,6 +6,11 @@ import { date, longDate, TYPES } from "@/lib/format";
 import { RsvpForm } from "./RsvpForm";
 import { InvitationBook, type BookPage } from "./InvitationBook";
 
+/** Noms des mariés sur trois lignes : premier nom, « & » au centre, second nom (lus « A & B » par les lecteurs d'écran). */
+function Stack({ a, b }: { a: string; b: string }) {
+  return <><span className="nm">{a}</span><span className="amp"> &amp; </span><span className="nm">{b}</span></>;
+}
+
 const initial = (s: string | null | undefined) => (Array.from((s || "").trim())[0] || "").toUpperCase();
 
 /** Invitation personnelle : la même vue sert à l'invité et à l'aperçu de l'organisateur (sans réponse possible). */
@@ -15,6 +20,8 @@ export async function Invitation({ data, token, preview }: { data: InvitationDat
   const couple = e.type === "mariage" || e.type === "fiancailles";
   const hosts = couple ? [e.host_a, e.host_b].map((s) => (s || "").trim()).filter(Boolean) : [];
   const names = hosts.join(" & ") || e.title;
+  const stacked = hosts.length === 2; // les deux mariés (ou fiancés) : un nom par ligne, « & » centré entre les deux
+  const longest = Math.max(0, ...hosts.map((h) => h.length));
   const initials = (hosts.length ? hosts : [e.title]).map(initial).filter(Boolean);
   const label = TYPES[e.type]?.label || "Invitation";
   const prog = e.program.split("\n").map((l) => l.split("|").map((s) => s.trim())).filter((p) => p[0]);
@@ -31,8 +38,8 @@ export async function Invitation({ data, token, preview }: { data: InvitationDat
           <div className="hero-shade" aria-hidden="true" />
           <div className="hero-txt">
             {couple && <p className="hero-lead">L’amour c’est la suite</p>}
-            <h1 className={"hero-names" + (names.length > 24 ? " long" : "")}>
-              {hosts.length === 2 ? <>{hosts[0]}<span className="amp">&amp;</span>{hosts[1]}</> : names}
+            <h1 className={"hero-names" + (stacked ? " stacked" : "") + ((stacked ? longest > 11 : names.length > 24) ? " long" : "")}>
+              {stacked ? <Stack a={hosts[0]} b={hosts[1]} /> : names}
             </h1>
             <p className="hero-date">{date(e.date)}</p>
           </div>
@@ -46,7 +53,7 @@ export async function Invitation({ data, token, preview }: { data: InvitationDat
           {band(photos[1])}
           <div className="paper-in">
             <p className="leaf-eyebrow">{label}</p>
-            <p className="leaf-script">{names}</p>
+            <p className={"leaf-script" + (stacked ? " stacked" : "")}>{stacked ? <Stack a={hosts[0]} b={hosts[1]} /> : names}</p>
             <span className="rule" aria-hidden="true" />
             <p className="leaf-salut">{salutation({ name: g.name, kind: (g.kind as GuestKind | null) || null })}</p>
             <p className="leaf-text">{e.message || "Vous êtes cordialement invité(e)."}</p>
