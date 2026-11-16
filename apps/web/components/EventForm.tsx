@@ -1,13 +1,13 @@
 "use client";
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
-import { parseGuests, tableCount, KIND_LABEL } from "@ceremonia/core";
+import { parseGuests, tableCount, KIND_LABEL, WEDDING_KINDS, isWeddingKind } from "@ceremonia/core";
 import { readGuestFile } from "@/lib/client/readGuestFile";
 import { useFormDraft } from "@/lib/client/useFormDraft";
 import { TYPES, titleOf, money } from "@/lib/format";
 import { GUEST_COUNT } from "@/lib/schemas";
 import type { ActionState } from "@/components/ConfirmAction";
 
-type Initial = Partial<Record<"type" | "host_a" | "host_b" | "title" | "event_date" | "event_time" | "venue" | "address" | "dress" | "message" | "program" | "offer" | "phone_prefix", string>> & { expected?: number; table_capacity?: number };
+type Initial = Partial<Record<"type" | "wedding_kind" | "host_a" | "host_b" | "title" | "event_date" | "event_time" | "venue" | "address" | "dress" | "message" | "program" | "offer" | "phone_prefix", string>> & { expected?: number; table_capacity?: number };
 
 /**
  * Écrans de la création ; le 8ᵉ (photos) suit l'enregistrement du brouillon, car une photo a besoin de l'événement.
@@ -40,6 +40,7 @@ export function EventForm({ action, owner, initial, eventId, price, draft }: { a
   const [state, run, pending] = useActionState<ActionState, FormData>(action, null);
   const [type, setType] = useState(initial?.type || "mariage");
   const T = TYPES[type];
+  const [weddingKind, setWeddingKind] = useState(initial?.wedding_kind || "");
   const [a, setA] = useState(initial?.host_a || "");
   const [b, setB] = useState(initial?.host_b || "");
   const [title, setTitle] = useState(initial?.title || "");
@@ -120,6 +121,15 @@ export function EventForm({ action, owner, initial, eventId, price, draft }: { a
             {Object.entries(TYPES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
         </div>
+        {type === "mariage" ? (
+          <div className="fld"><label htmlFor="wedding_kind">Type de mariage</label>
+            <select id="wedding_kind" name="wedding_kind" required value={weddingKind} onChange={(e) => setWeddingKind(e.target.value)}>
+              <option value="" disabled>Choisissez le type de mariage</option>
+              {Object.entries(WEDDING_KINDS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+            <p className="hint">Il figure dans le message WhatsApp envoyé à chaque invité.</p>
+          </div>
+        ) : <input type="hidden" name="wedding_kind" value="" />}
         <div className="grid g2">
           <div className="fld"><label htmlFor="host_a">{T.a}</label><input id="host_a" name="host_a" maxLength={80} value={a} onChange={(e) => setA(e.target.value)} /></div>
           {T.b ? <div className="fld"><label htmlFor="host_b">{T.b}</label><input id="host_b" name="host_b" maxLength={80} value={b} onChange={(e) => setB(e.target.value)} /></div> : <input type="hidden" name="host_b" value="" />}
@@ -199,6 +209,7 @@ export function EventForm({ action, owner, initial, eventId, price, draft }: { a
           <h2>Récapitulatif</h2>
           <dl className="kv">
             <dt>Titre</dt><dd>{snap.title || shownTitle || "—"}</dd>
+            {type === "mariage" && <><dt>Type de mariage</dt><dd>{isWeddingKind(weddingKind) ? WEDDING_KINDS[weddingKind] : "—"}</dd></>}
             <dt>Date et heure</dt><dd>{snap.event_date ? new Date(snap.event_date + "T00:00:00").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : "—"} à {snap.event_time || "—"}</dd>
             <dt>Lieu</dt><dd>{[snap.venue, snap.address].filter(Boolean).join(", ") || "—"}</dd>
             <dt>Nombre d’invités</dt><dd>{expected || "—"}</dd>

@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { readiness } from "@ceremonia/core";
+import { readiness, inviteMessage, isWeddingKind } from "@ceremonia/core";
 import { requireOrganizer, rpc, origin } from "@/lib/auth";
 import { loadEvent, loadGuests, loadCatalog, canWrite } from "@/lib/event";
 import { PageHeader, Empty, Notice } from "@/components/ui";
 import { SendList } from "@/components/SendList";
-import { money, longDate } from "@/lib/format";
+import { money } from "@/lib/format";
 
 export default async function Send({ params }: { params: Promise<{ id: string }> }) {
   const me = await requireOrganizer();
@@ -17,7 +17,8 @@ export default async function Send({ params }: { params: Promise<{ id: string }>
     return {
       id: g.id, name: g.name, whatsapp: g.whatsapp, sent: g.whatsapp_opened_at, rsvp: g.rsvp, code: g.code, table: g.table_no, link,
       issues: readiness(ev, guests, g, cat),
-      text: `Bonjour ${g.name},\n\nVous êtes invité(e) : ${ev.title}, le ${longDate(ev.event_date)} à ${ev.event_time.slice(0, 5)}, ${ev.venue}.\n\nVotre invitation personnelle (merci de confirmer votre présence) :\n${link}`,
+      // message propre à chaque invité (formule d'appel, type de mariage, mariés, date, lien personnel ; jamais le lieu)
+      text: inviteMessage(ev, g, link),
     };
   });
   const canSend = bill.ok && bill.data.can_send;
@@ -29,6 +30,7 @@ export default async function Send({ params }: { params: Promise<{ id: string }>
     <>
       <PageHeader eyebrow="Préparer" title="Envoi des invitations" sub={`${ready.length} prête(s) sur ${rows.length} · l’envoi ouvre WhatsApp, vous validez chaque message.`} />
       {!canSend && bill.ok && <Notice tone="bad">Règlement en attente : réglez {money(bill.data.remaining_cents, bill.data.currency)} depuis <Link href={`/events/${id}`}>l’accueil de l’événement</Link> pour activer l’envoi.</Notice>}
+      {ev.type === "mariage" && !isWeddingKind(ev.wedding_kind) && <Notice>Type de mariage non précisé : le message indiquera seulement « mariage ». Précisez-le depuis <Link href={`/events/${id}/edit`}>Modifier l’événement</Link>.</Notice>}
       {!ev.photos.length && <Notice tone="bad">Aucune photo : ajoutez au moins une photo depuis <Link href={`/events/${id}/edit`}>Modifier l’événement</Link> pour activer l’envoi.</Notice>}
       {!rows.length ? <Empty>Ajoutez d’abord des invités.</Empty> : <SendList eventId={id} rows={rows} enabled={canSend && canWrite(ev, me)} linksOpen={linksOpen} />}
     </>

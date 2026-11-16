@@ -6,7 +6,7 @@ import { insertGuests, runAutoAssign } from "@/lib/guests";
 import { requireOrganizer, humanError } from "@/lib/auth";
 import { serverClient } from "@/lib/data/server";
 import { putPhoto, removePhotos } from "@ceremonia/server";
-import { EventSchema, lines } from "@/lib/schemas";
+import { EventSchema, EventFields, lines } from "@/lib/schemas";
 import type { ActionState } from "@/components/ConfirmAction";
 
 const fail = (message: string): ActionState => ({ ok: false, message });
@@ -104,7 +104,7 @@ export async function updateEvent(_: ActionState, fd: FormData): Promise<ActionS
 export async function updateSettings(_: ActionState, fd: FormData): Promise<ActionState> {
   await requireOrganizer();
   const id = String(fd.get("event_id"));
-  const p = EventSchema.pick({ table_capacity: true, expected: true, phone_prefix: true }).safeParse(Object.fromEntries(fd));
+  const p = EventFields.pick({ table_capacity: true, expected: true, phone_prefix: true }).safeParse(Object.fromEntries(fd));
   if (!p.success) return fail(p.error.issues[0]?.message || "Valeurs invalides.");
   const sb = await serverClient();
   const { error, count } = await sb.from("events").update(p.data, { count: "exact" }).eq("id", id);

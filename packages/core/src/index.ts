@@ -310,6 +310,70 @@ export function salutation(g: { name: string; kind: GuestKind | null }): string 
   return `Bonjour ${raw},`;
 }
 
+// ---------------- message WhatsApp de l'invitation ----------------
+/** Types de mariage proposés à l'organisateur (valeurs enregistrées dans events.wedding_kind). */
+export const WEDDING_KINDS = {
+  civil: "Mariage civil",
+  coutumier: "Mariage coutumier",
+  religieux: "Mariage religieux",
+  civil_coutumier: "Mariage civil et coutumier",
+  civil_religieux: "Mariage civil et religieux",
+  coutumier_religieux: "Mariage coutumier et religieux",
+  civil_coutumier_religieux: "Mariage civil, coutumier et religieux",
+} as const;
+export type WeddingKind = keyof typeof WEDDING_KINDS;
+export const isWeddingKind = (v: unknown): v is WeddingKind => typeof v === "string" && Object.prototype.hasOwnProperty.call(WEDDING_KINDS, v);
+
+/** « samedi 12 juin 2027 » : date seule (AAAA-MM-JJ), lue à midi pour ne jamais changer de jour selon le fuseau. */
+export function frLongDate(d: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d || ""));
+  if (!m) return "";
+  const dt = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], 12));
+  if (isNaN(dt.getTime())) return "";
+  return new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(dt);
+}
+
+const both = (a: string, b: string) => (a && b ? `${a} et ${b}` : a || b);
+
+/** Nature de l'événement, introduite par la bonne préposition : « au mariage coutumier de Marc et Nadia ». Rien n'est inventé. */
+export function eventPhrase(ev: { type: string; wedding_kind?: string | null; host_a?: string | null; host_b?: string | null; title?: string | null }): string {
+  const a = String(ev.host_a || "").trim(), b = String(ev.host_b || "").trim(), title = String(ev.title || "").trim();
+  // élision devant une voyelle ou un h : « d’Emmanuel », « d’Hélène et Marc »
+  const of = (who: string) => (!who ? "" : /^[aeiouàâäéèêëîïôöùûüh]/i.test(who) ? ` d’${who}` : ` de ${who}`);
+  switch (ev.type) {
+    case "mariage": {
+      const k = isWeddingKind(ev.wedding_kind) ? WEDDING_KINDS[ev.wedding_kind].toLowerCase() : "mariage";
+      return `au ${k}${of(both(a, b))}`;
+    }
+    case "fiancailles": return `aux fiançailles${of(both(a, b))}`;
+    case "anniversaire": return `à l’anniversaire${of(a)}`;
+    case "bapteme": return `au baptême${of(a)}`;
+    case "gala": return (a || title) ? `au gala « ${a || title} »` : "à notre soirée de gala";
+    case "conference": return (a || title) ? `à la conférence « ${a || title} »` : "à notre conférence";
+    default: return title ? `à l’événement « ${title} »` : "à notre événement";
+  }
+}
+
+/**
+ * Message WhatsApp personnel d'un invité : formule d'appel selon son statut, nature exacte de l'événement,
+ * noms des mariés, date et lien individuel. Jamais le lieu ; une information absente est omise, jamais inventée.
+ */
+export function inviteMessage(
+  ev: { type: string; wedding_kind?: string | null; host_a?: string | null; host_b?: string | null; title?: string | null; event_date: string },
+  g: { name: string; kind: GuestKind | null },
+  link: string,
+): string {
+  const date = frLongDate(ev.event_date);
+  return [
+    salutation(g),
+    `Nous avons le plaisir de vous inviter ${eventPhrase(ev)}${date ? `, qui aura lieu le ${date}` : ""}.`,
+    "Nous serions heureux de vous compter parmi nous pour partager ce moment spécial.",
+    "Découvrez votre invitation en cliquant sur le lien ci-dessous :",
+    link,
+    "Au plaisir de vous recevoir !",
+  ].join("\n\n");
+}
+
 // ---------------- téléphones ----------------
 export function normPhone(raw: unknown, prefix: string): { ok: boolean; value: string; why: string } {
   let s = String(raw ?? "").trim();

@@ -222,3 +222,94 @@ test("formule d'appel : couple, homme, femme, titres, civilités non répétées
   assert.equal(s("  ", null), "Bonjour,");
   assert.equal(s("Monsieur", "mr"), "Cher Monsieur,");
 });
+
+// ---------------- message WhatsApp de l'invitation ----------------
+const NB = "\u00a0";
+const WED = { type: "mariage", wedding_kind: "coutumier", host_a: "Patrick", host_b: "Grâce", title: "Patrick & Grâce", event_date: "2027-06-12", venue: "Salle Le Prestige", address: "Boulevard du 30 Juin" };
+const LINK = "https://skyevenapp.example/i/tok_123";
+
+test("message WhatsApp : couple, exactement le modèle attendu", () => {
+  assert.equal(C.inviteMessage(WED, { name: "Couple Bola", kind: "couple" }, LINK),
+    "Chers Monsieur et Madame Bola,\n\n" +
+    "Nous avons le plaisir de vous inviter au mariage coutumier de Patrick et Grâce, qui aura lieu le samedi 12 juin 2027.\n\n" +
+    "Nous serions heureux de vous compter parmi nous pour partager ce moment spécial.\n\n" +
+    `Découvrez votre invitation en cliquant sur le lien ci-dessous${NB}:\n\n` +
+    LINK + "\n\n" +
+    `Au plaisir de vous recevoir${NB}!`);
+});
+
+test("message WhatsApp : seule la formule d'appel change selon le statut", () => {
+  const body = (m) => m.split("\n\n").slice(1).join("\n\n");
+  const couple = C.inviteMessage(WED, { name: "Couple Bola", kind: "couple" }, LINK);
+  const mr = C.inviteMessage(WED, { name: "Mr Luc Mbuyi", kind: "mr" }, LINK);
+  const mme = C.inviteMessage(WED, { name: "Mme Lucie Kanku", kind: "mme" }, LINK);
+  const unk = C.inviteMessage(WED, { name: "Kabongo", kind: null }, LINK);
+  assert.ok(mr.startsWith("Cher Monsieur Luc Mbuyi,\n\n"));
+  assert.ok(mme.startsWith("Chère Madame Lucie Kanku,\n\n"));
+  assert.ok(unk.startsWith("Bonjour Kabongo,\n\n"));
+  for (const m of [mr, mme, unk]) assert.equal(body(m), body(couple));
+});
+
+test("message WhatsApp : chaque type de mariage est nommé exactement", () => {
+  const expected = {
+    civil: "au mariage civil", coutumier: "au mariage coutumier", religieux: "au mariage religieux",
+    civil_coutumier: "au mariage civil et coutumier", civil_religieux: "au mariage civil et religieux",
+    coutumier_religieux: "au mariage coutumier et religieux", civil_coutumier_religieux: "au mariage civil, coutumier et religieux",
+  };
+  assert.deepEqual(Object.keys(C.WEDDING_KINDS).sort(), Object.keys(expected).sort());
+  for (const [k, phrase] of Object.entries(expected)) {
+    const m = C.inviteMessage({ ...WED, wedding_kind: k }, { name: "Luc", kind: "mr" }, LINK);
+    assert.ok(m.includes(`vous inviter ${phrase} de Patrick et Grâce, qui aura lieu le samedi 12 juin 2027.`), k + " → " + m);
+  }
+});
+
+test("message WhatsApp : date juste, quel que soit le jour ou le mois", () => {
+  assert.equal(C.frLongDate("2027-01-01"), "vendredi 1 janvier 2027");
+  assert.equal(C.frLongDate("2026-12-31"), "jeudi 31 décembre 2026");
+  assert.equal(C.frLongDate("2027-08-15"), "dimanche 15 août 2027");
+  assert.equal(C.frLongDate(""), "");
+});
+
+test("message WhatsApp : lien individuel de chaque invité, jamais le lieu ni l'adresse", () => {
+  const a = C.inviteMessage(WED, { name: "A", kind: "mr" }, "https://x/i/AAA");
+  const b = C.inviteMessage(WED, { name: "B", kind: "mme" }, "https://x/i/BBB");
+  assert.ok(a.includes("\n\nhttps://x/i/AAA\n\n") && !a.includes("BBB"));
+  assert.ok(b.includes("\n\nhttps://x/i/BBB\n\n") && !b.includes("AAA"));
+  for (const m of [a, b]) { assert.ok(!m.includes("Prestige")); assert.ok(!m.includes("Boulevard")); assert.ok(!/\bà \d{2}:\d{2}/.test(m)); }
+});
+
+test("message WhatsApp : informations manquantes omises, jamais inventées", () => {
+  const g = { name: "Luc", kind: "mr" };
+  // mariage enregistré avant le type de mariage : « au mariage », sans type supposé
+  assert.ok(C.inviteMessage({ ...WED, wedding_kind: "" }, g, LINK).includes("vous inviter au mariage de Patrick et Grâce, qui aura lieu"));
+  assert.ok(C.inviteMessage({ ...WED, wedding_kind: "inconnu" }, g, LINK).includes("vous inviter au mariage de Patrick et Grâce,"));
+  // un seul nom, aucun nom
+  assert.ok(C.inviteMessage({ ...WED, host_b: "" }, g, LINK).includes("au mariage coutumier de Patrick, qui aura lieu"));
+  assert.ok(C.inviteMessage({ ...WED, host_a: " ", host_b: "" }, g, LINK).includes("vous inviter au mariage coutumier, qui aura lieu"));
+  // date absente : pas de date inventée
+  const noDate = C.inviteMessage({ ...WED, event_date: "" }, g, LINK);
+  assert.ok(noDate.includes("au mariage coutumier de Patrick et Grâce.\n\n") && !noDate.includes("aura lieu"));
+  // invité sans nom ni statut
+  assert.ok(C.inviteMessage(WED, { name: "", kind: null }, LINK).startsWith("Bonjour,\n\n"));
+  assert.ok(!/undefined|null/.test(C.inviteMessage({ type: "mariage", event_date: "2027-06-12" }, { name: "", kind: null }, LINK)));
+});
+
+test("message WhatsApp : autres types d'événement, sans type de mariage", () => {
+  const p = (ev) => C.eventPhrase(ev);
+  assert.equal(p({ type: "fiancailles", host_a: "Marc", host_b: "Nadia", wedding_kind: "civil" }), "aux fiançailles de Marc et Nadia");
+  assert.equal(p({ type: "anniversaire", host_a: "Mamie Rose" }), "à l’anniversaire de Mamie Rose");
+  assert.equal(p({ type: "bapteme", host_a: "Emmanuel" }), "au baptême d’Emmanuel");
+  assert.equal(p({ type: "mariage", wedding_kind: "civil", host_a: "Éric", host_b: "Ruth" }), "au mariage civil d’Éric et Ruth");
+  assert.equal(p({ type: "mariage", wedding_kind: "religieux", host_a: "Hugo", host_b: "Aline" }), "au mariage religieux d’Hugo et Aline");
+  assert.equal(p({ type: "mariage", wedding_kind: "religieux", host_a: "Yannick", host_b: "Aline" }), "au mariage religieux de Yannick et Aline");
+  assert.equal(p({ type: "gala", host_a: "Gala Espoir", host_b: "ONG X" }), `au gala «${NB}Gala Espoir${NB}»`);
+  assert.equal(p({ type: "conference", host_a: "", title: "Tech Kin" }), `à la conférence «${NB}Tech Kin${NB}»`);
+  assert.equal(p({ type: "gala" }), "à notre soirée de gala");
+});
+
+test("message WhatsApp : encodage correct dans un lien wa.me (accents, retours à la ligne, espaces insécables)", () => {
+  const m = C.inviteMessage(WED, { name: "Mme Hélène", kind: "mme" }, LINK);
+  const url = `https://wa.me/243810000001?text=${encodeURIComponent(m)}`;
+  assert.ok(!/[\s«»éè’]/.test(url), "aucun caractère brut dans l'URL");
+  assert.equal(new URL(url).searchParams.get("text"), m);
+});

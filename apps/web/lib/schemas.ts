@@ -1,8 +1,12 @@
 import { z } from "zod";
+import { isWeddingKind } from "@ceremonia/core";
+
+export const WEDDING_KIND_REQUIRED = "Précisez le type de mariage (civil, coutumier, religieux ou une combinaison).";
 
 export const GUEST_COUNT = "Indiquez le nombre d’invités (un nombre entier, au moins 1) : il sert à préparer les tables.";
 
-export const EventSchema = z.object({
+/** Champs de l'événement, un par un (réglages partiels : EventFields.pick). */
+export const EventFields = z.object({
   type: z.enum(["mariage", "fiancailles", "anniversaire", "bapteme", "gala", "conference"]),
   host_a: z.string().trim().max(80).default(""),
   host_b: z.string().trim().max(80).default(""),
@@ -19,7 +23,13 @@ export const EventSchema = z.object({
   table_capacity: z.coerce.number().int().min(1, "Places par table : 1 minimum.").max(100),
   offer: z.enum(["both", "drinks", "food", "none"]),
   phone_prefix: z.string().regex(/^\+\d{1,4}$/, "Indicatif invalide (ex. +243).").default("+243"),
+  // type de mariage : obligatoire pour un mariage, toujours vide pour les autres types (revérifié par la base)
+  wedding_kind: z.string().trim().default(""),
 });
+/** Formulaire complet de l'événement (création, brouillon, modification). */
+export const EventSchema = EventFields.superRefine((v, ctx) => {
+  if (v.type === "mariage" && !isWeddingKind(v.wedding_kind)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["wedding_kind"], message: WEDDING_KIND_REQUIRED });
+}).transform((v) => ({ ...v, wedding_kind: v.type === "mariage" ? v.wedding_kind : "" }));
 export type EventInput = z.infer<typeof EventSchema>;
 
 export const uuid = z.string().uuid();

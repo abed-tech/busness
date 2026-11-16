@@ -42,7 +42,7 @@ test("connexion : mauvais mot de passe refusé, bon mot de passe accepté", asyn
 
 test("événement : création (avec boissons et invités placés automatiquement) → écran photos, en brouillon non payé", async () => {
   const form = {
-    type: "mariage", host_a: "Marc", host_b: "Nadia", title: "Marc & Nadia " + u, event_date: "2027-06-12", event_time: "17:00",
+    type: "mariage", wedding_kind: "coutumier", host_a: "Marc", host_b: "Nadia", title: "Marc & Nadia " + u, event_date: "2027-06-12", event_time: "17:00",
     venue: "Salle Le Palmier", address: "Gombe", dress: "", message: "Bienvenue", program: "17:00 | Accueil", expected: "4", table_capacity: "4",
     phone_prefix: "+243", offer: "drinks", drinks: "Coca\nEau", guests: "Mr Luc ; Monsieur ; 0810000001\nCouple Bola ; Couple ; +243810000002\nMme Lucie ; Madame ; 0810000003", auto: "on",
   };
@@ -51,12 +51,18 @@ test("événement : création (avec boissons et invités placés automatiquement
     const bad = await W.events.createEvent(null, fdOf({ ...form, expected }));
     assert.equal(bad?.ok, false, `nombre d'invités « ${expected} » accepté`); assert.match(bad.message, /nombre d’invités/i);
   }
+  // type de mariage obligatoire pour un mariage : absent ou inconnu refusé
+  for (const wedding_kind of ["", "autre"]) {
+    const bad = await W.events.createEvent(null, fdOf({ ...form, wedding_kind }));
+    assert.equal(bad?.ok, false, `type de mariage « ${wedding_kind} » accepté`); assert.match(bad.message, /type de mariage/i);
+  }
   const r = await redirected(W.events.createEvent(null, fdOf(form)));
   assert.match(r.url, /^\/events\/[0-9a-f-]{36}\/photos\?new=1$/, JSON.stringify(r));
   EV = r.url.split("/")[2];
   const ev = await W.loadEvent(EV); assert.equal(ev.title, "Marc & Nadia " + u); assert.deepEqual(ev.photos, []);
   assert.equal(ev.status, "draft", "l'événement n'est pas créé définitivement avant le paiement");
   assert.equal(ev.expected, 4);
+  assert.equal(ev.wedding_kind, "coutumier", "type de mariage enregistré");
   const sb = await (await import("node:module")).createRequire(import.meta.url)("./.web.cjs").server.dataClient({ role: "authenticated", claims: { sub: ev.owner_id } });
   const g = await sb.from("guests").select("id, name, kind, table_no, invite_token, code").eq("event_id", EV).order("sort_order");
   assert.equal(g.data.length, 3); assert.ok(g.data.every((x) => x.table_no), "tous placés à table");
