@@ -455,6 +455,21 @@ test("aperçu : même composant que l'invitation, formule d'appel, aucun éléme
   assert.ok(t2.includes("Cher Monsieur Luc,"), "formule d'appel d'un homme seul");
 });
 
+test("modification de l'invitation : enregistrée sans quitter l'éditeur (aucune redirection), plusieurs fois de suite", async () => {
+  const ev = await W.loadEvent(EV);
+  const form = { event_id: EV, type: ev.type, wedding_kind: ev.wedding_kind || "coutumier", host_a: ev.host_a, host_b: ev.host_b, title: ev.title, event_date: ev.event_date, event_time: ev.event_time.slice(0, 5),
+    venue: ev.venue, address: ev.address, dress: "", message: ev.message, program: ev.program, expected: String(ev.expected), table_capacity: String(ev.table_capacity), phone_prefix: ev.phone_prefix, offer: ev.offer };
+  for (const dress of ["Tenue de soirée", "Tenue traditionnelle"]) {
+    const r = await redirected(W.events.updateEvent(null, fdOf({ ...form, dress })));
+    assert.equal(r.url, undefined, "pas de navigation : la position dans la page est conservée");
+    assert.deepEqual(r.value, { ok: true, message: "Modifications enregistrées." });
+    assert.equal((await W.loadEvent(EV)).dress, dress, "modification enregistrée");
+  }
+  const bad = await redirected(W.events.updateEvent(null, fdOf({ ...form, venue: "" })));
+  assert.equal(bad.value?.ok, false, "erreur affichée sur place"); assert.equal(bad.url, undefined);
+  assert.equal((await W.loadEvent(EV)).dress, "Tenue traditionnelle", "rien enregistré en cas d'erreur");
+});
+
 test("suppression d'un événement : confirmation exigée, autre compte refusé, purge réelle, liste à jour", async () => {
   const ev = await W.loadEvent(EV);
   const token = GUESTS[0].invite_token;

@@ -31,4 +31,5 @@ export const QRCode = { toDataURL: async (t: string) => "data:image/png;base64,"
 export function useCallback<T>(f: T) { return f; }
 export function useMemo<T>(f: () => T) { return f(); }
 export function useTransition() { return [false, (f: () => void) => f()] as const; }
+export function startTransition(f: () => void) { f(); }
 export default QRCode;

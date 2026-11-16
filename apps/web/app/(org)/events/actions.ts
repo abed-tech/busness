@@ -96,8 +96,9 @@ export async function updateEvent(_: ActionState, fd: FormData): Promise<ActionS
   const { error, count } = await sb.from("events").update(p.data, { count: "exact" }).eq("id", id);
   if (error) return fail(humanError(error.message, error.code));
   if (!count) return fail("Modification refusée : l’événement est suspendu ou vous n’en êtes pas le gestionnaire.");
+  // pas de redirection : l'organisateur reste dans l'éditeur, à la même position ; seules les données de la page sont relues
   revalidatePath(`/events/${id}`, "layout");
-  redirect(`/events/${id}?updated=1`);
+  return { ok: true, message: "Modifications enregistrées." };
 }
 
 /** Réglages rapides de l'accueil : capacité, personnes attendues, indicatif. */

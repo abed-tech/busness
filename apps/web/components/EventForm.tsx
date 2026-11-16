@@ -1,5 +1,5 @@
 "use client";
-import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useActionState, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { parseGuests, tableCount, KIND_LABEL, WEDDING_KINDS, isWeddingKind } from "@ceremonia/core";
 import { readGuestFile } from "@/lib/client/readGuestFile";
 import { useFormDraft } from "@/lib/client/useFormDraft";
@@ -91,8 +91,17 @@ export function EventForm({ action, owner, initial, eventId, price, draft }: { a
     setStep(i);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
-  function onSubmit(e: { preventDefault(): void }) {
-    if (!creating) { kept.markSent(); return; }
+  function onSubmit(e: FormEvent<HTMLFormElement>) {
+    if (!creating) {
+      // modification : envoi sans soumission native du formulaire, sinon React 19 réinitialise les champs après l'action ;
+      // aucune navigation (le serveur ne redirige plus) : la page reste à la même position, seules ses données sont relues
+      e.preventDefault();
+      if (pending) return;
+      const fd = new FormData(e.currentTarget);
+      kept.markSent();
+      startTransition(() => run(fd));
+      return;
+    }
     if (step < LAST) { e.preventDefault(); goTo(step + 1); return; }
     for (let k = 0; k < LAST; k++) if (!stepValid(k)) { e.preventDefault(); return; }
     kept.markSent();
