@@ -189,16 +189,24 @@ export async function placeGuests(_: ActionState, fd: FormData): Promise<ActionS
 /** Permutation confirmée de deux invités placés sur des tables différentes ; rien n'est enregistré si la vérification échoue. */
 export async function confirmSwap(_: ActionState, fd: FormData): Promise<ActionState> {
   await requireOrganizer();
+  // « a » et « b » : un ou plusieurs identifiants d'invités séparés par « . » (un groupe par table).
   const id = String(fd.get("event_id")), a = String(fd.get("a")), b = String(fd.get("b"));
-  if (!UUID.test(id) || !UUID.test(a) || !UUID.test(b) || a === b) return { ok: false, message: "Choisissez deux invités différents." };
+  const ida = [...new Set(a.split("."))], idb = [...new Set(b.split("."))];
+  if (!UUID.test(id) || ![...ida, ...idb].every((x) => UUID.test(x)) || ida.some((x) => idb.includes(x))) return { ok: false, message: "Choisissez des invités différents de chaque côté." };
   const { guests } = await ctx(id);
-  const ga = guests.find((g) => g.id === a), gb = guests.find((g) => g.id === b);
-  if (!ga || !gb) return { ok: false, message: "Invité introuvable." };
-  if (!ga.table_no || !gb.table_no) return { ok: false, message: "Les deux invités doivent être placés à une table : pour placer un invité sans table, utilisez le placement manuel." };
-  if (ga.table_no === gb.table_no) return { ok: false, message: "Ces deux invités sont déjà à la même table : rien à permuter." };
-  const r = await save(id, { [a]: gb.table_no, [b]: ga.table_no }, `Permutation : ${ga.name} (table ${gb.table_no}) ⇄ ${gb.name} (table ${ga.table_no})`);
+  const ga = ida.map((i) => guests.find((g) => g.id === i)), gb = idb.map((i) => guests.find((g) => g.id === i));
+  if (ga.some((g) => !g) || gb.some((g) => !g)) return { ok: false, message: "Invité introuvable." };
+  const A = ga as typeof guests, B = gb as typeof guests;
+  if ([...A, ...B].some((g) => !g.table_no)) return { ok: false, message: "Tous les invités doivent être placés à une table : pour placer un invité sans table, utilisez le placement manuel." };
+  const ta = A[0].table_no!, tb = B[0].table_no!;
+  if (A.some((g) => g.table_no !== ta) || B.some((g) => g.table_no !== tb)) return { ok: false, message: "Les invités d’un même côté doivent être à la même table." };
+  if (ta === tb) return { ok: false, message: "Ces invités sont déjà à la même table : rien à permuter." };
+  const moves: Record<string, number> = {};
+  for (const g of A) moves[g.id] = tb;
+  for (const g of B) moves[g.id] = ta;
+  const r = await save(id, moves, `Permutation : ${A.map((g) => g.name).join(", ")} (table ${tb}) ⇄ ${B.map((g) => g.name).join(", ")} (table ${ta})`);
   if (!r?.ok) return { ok: false, message: `Permutation refusée, aucune place n’a changé : ${r?.message}` };
-  redirect(`${base(id)}?swapped=${a},${b}`);
+  redirect(`${base(id)}?swapped=${ida.join(".")},${idb.join(".")}`);
 }
 
 export async function changeTables(_: ActionState, fd: FormData): Promise<ActionState> {

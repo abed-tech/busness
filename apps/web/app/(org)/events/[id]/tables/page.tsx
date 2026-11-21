@@ -16,14 +16,15 @@ export default async function Tables({ params, searchParams }: { params: Promise
   const tc = tableCount(evShape(ev), guests);
   const free = tables.filter((t) => !t.ghost).reduce((s, t) => s + t.free, 0);
   const name = (gid?: string) => guests.find((g) => g.id === gid)?.name;
-  const [sa, sb] = (sp.swapped || "").split(",");
+  const [sa, sb] = (sp.swapped || "").split(",").map((s) => s.split(".").map(name).filter(Boolean).join(", "));
+  const plural = (sp.swapped || "").includes(".");
   const base = `/events/${id}/tables`;
   return (
     <>
       <PageHeader eyebrow="Préparer" title="Tables" sub={`${plur(tc, "table")} de ${ev.table_capacity} places · ${plur(free, "place libre", "places libres")} · ${plur(unplaced.length, "invitation")} sans table`} />
       {name(sp.complete) && <Notice tone="ok">{name(sp.complete)} placé(e) avec succès à la table {sp.t}. Tous les invités ont maintenant une table.</Notice>}
       {Number(sp.many) > 0 && !unplaced.length && <Notice tone="ok">{plur(Number(sp.many), "invitation placée", "invitations placées")} avec succès à la table {sp.t}. Tous les invités ont maintenant une table.</Notice>}
-      {name(sa) && name(sb) && <Notice tone="ok">Permutation enregistrée : {name(sa)} et {name(sb)} ont échangé leurs places.</Notice>}
+      {sa && sb && <Notice tone="ok">Permutation enregistrée : {sa} et {sb} ont échangé leurs places{plural ? " (permutation de groupes)" : ""}.</Notice>}
       {!guests.length ? <Empty>Ajoutez d’abord des invités.</Empty> : (
         <>
           {unplaced.length > 0 && (

@@ -23,14 +23,26 @@ export default async function Permuter({ params, searchParams }: { params: Promi
   const base = `/events/${id}/tables`;
   if (!write) redirect(base);
   const placed = guests.filter((g) => g.table_no);
-  const a = UUID.test(sp.a || "") ? placed.find((g) => g.id === sp.a) : undefined;
-  const b = a && UUID.test(sp.b || "") ? placed.find((g) => g.id === sp.b && g.table_no !== a.table_no) : undefined;
+  // Un groupe = un ou plusieurs invités assis à la même table, séparés par « . » dans l'URL.
+  const group = (s?: string, not?: number): GuestRow[] | undefined => {
+    const ids = [...new Set((s || "").split(".").filter((x) => UUID.test(x)))];
+    const gs = ids.map((i) => placed.find((g) => g.id === i));
+    if (!ids.length || gs.some((g) => !g) || new Set(gs.map((g) => g!.table_no)).size !== 1 || gs[0]!.table_no === not) return undefined;
+    return gs as GuestRow[];
+  };
+  const a = group(sp.a);
+  const b = a && group(sp.b, a[0].table_no!);
   const href = (o: { a?: string; b?: string }) => `${base}/permuter?${new URLSearchParams(Object.entries(o).filter(([, v]) => v) as [string, string][]).toString()}`;
+  const names = (gs: GuestRow[]) => gs.map((g) => g.name).join(", ");
 
-  const List = ({ items, pick }: { items: GuestRow[]; pick: (g: GuestRow) => string }) => (
+  const List = ({ items, param, keep, label }: { items: GuestRow[]; param: "a" | "b"; keep?: string; label: string }) => (
     <PermuterPicker
       placeholder="Rechercher un nom, un numéro, un code ou une table"
-      items={items.map((g) => ({ id: g.id, name: g.name, table: g.table_no!, whatsapp: g.whatsapp || "", code: g.code || "", hint: kindHint(g), href: pick(g) }))}
+      base={base}
+      param={param}
+      keep={keep}
+      label={label}
+      items={items.map((g) => ({ id: g.id, name: g.name, table: g.table_no!, whatsapp: g.whatsapp || "", code: g.code || "", hint: kindHint(g) }))}
     />
   );
 
@@ -40,45 +52,50 @@ export default async function Permuter({ params, searchParams }: { params: Promi
   } else if (!a) {
     step = (
       <>
-        <p className="hint" style={{ marginBottom: 10 }}><b>Étape 1 sur 3</b> · Choisissez le premier invité.</p>
-        <List items={placed} pick={(g) => href({ a: g.id })} />
+        <p className="hint" style={{ marginBottom: 10 }}><b>Étape 1 sur 3</b> · Choisissez le ou les premiers invités.</p>
+        <List items={placed} param="a" label="Continuer" />
       </>
     );
   } else if (!b) {
     step = (
       <>
-        <Notice>Premier invité : <b>{a.name}</b>, table {a.table_no}. <Link href={href({})}>Changer</Link></Notice>
-        <p className="hint" style={{ marginBottom: 10 }}><b>Étape 2 sur 3</b> · Choisissez l’invité avec qui échanger la place (une autre table).</p>
-        <List items={placed.filter((g) => g.table_no !== a.table_no)} pick={(g) => href({ a: a.id, b: g.id })} />
-        <p className="hint" style={{ marginTop: 14 }}>Vous voulez seulement déplacer {a.name} vers une place libre, sans échange ? <Link href={`${base}/manuel/${a.id}?move=1`}>Déplacer {a.name}</Link></p>
+        <Notice>{a.length > 1 ? "Premiers invités" : "Premier invité"} : <b>{names(a)}</b>, table {a[0].table_no}. <Link href={href({})}>Changer</Link></Notice>
+        <p className="hint" style={{ marginBottom: 10 }}><b>Étape 2 sur 3</b> · Choisissez le ou les invités avec qui échanger les places (une autre table).</p>
+        <List items={placed.filter((g) => g.table_no !== a[0].table_no)} param="b" keep={a.map((g) => g.id).join(".")} label="Vérifier" />
+        {a.length === 1 && <p className="hint" style={{ marginTop: 14 }}>Vous voulez seulement déplacer {a[0].name} vers une place libre, sans échange ? <Link href={`${base}/manuel/${a[0].id}?move=1`}>Déplacer {a[0].name}</Link></p>}
       </>
     );
   } else {
-    const errs = checkMoves(evShape(ev), guests as Guest[], { [a.id]: b.table_no!, [b.id]: a.table_no! });
+    const ta = a[0].table_no!, tb = b[0].table_no!;
+    const moves: Record<string, number> = {};
+    for (const g of a) moves[g.id] = tb;
+    for (const g of b) moves[g.id] = ta;
+    const errs = checkMoves(evShape(ev), guests as Guest[], moves);
+    const aIds = a.map((g) => g.id).join("."), bIds = b.map((g) => g.id).join(".");
     step = (
       <section className="card form" style={{ maxWidth: 720 }}>
         <p className="hint"><b>Étape 3 sur 3</b> · Vérifiez puis confirmez.</p>
         <div className="tbl-wrap"><table className="tbl">
           <thead><tr><th>Invité</th><th>Table actuelle</th><th>Après la permutation</th></tr></thead>
           <tbody>
-            <tr><td><b>{a.name}</b><br /><span className="hint">{kindHint(a)}</span></td><td>Table {a.table_no}</td><td><b>Table {b.table_no}</b></td></tr>
-            <tr><td><b>{b.name}</b><br /><span className="hint">{kindHint(b)}</span></td><td>Table {b.table_no}</td><td><b>Table {a.table_no}</b></td></tr>
+            {a.map((g) => <tr key={g.id}><td><b>{g.name}</b><br /><span className="hint">{kindHint(g)}</span></td><td>Table {ta}</td><td><b>Table {tb}</b></td></tr>)}
+            {b.map((g) => <tr key={g.id}><td><b>{g.name}</b><br /><span className="hint">{kindHint(g)}</span></td><td>Table {tb}</td><td><b>Table {ta}</b></td></tr>)}
           </tbody>
         </table></div>
         {errs.length ? (
           <Notice tone="bad">Permutation impossible : {errs.join(" ")} Aucune place n’a été modifiée.</Notice>
         ) : (
-          <CardAction action={confirmSwap} hidden={{ event_id: id, a: a.id, b: b.id }} className="btn pay-main" pendingLabel="Enregistrement…">
+          <CardAction action={confirmSwap} hidden={{ event_id: id, a: aIds, b: bIds }} className="btn pay-main" pendingLabel="Enregistrement…">
             Confirmer la permutation
           </CardAction>
         )}
-        <div className="row"><Link className="btn ghost" href={href({ a: a.id })}>Choisir un autre invité</Link><Link className="btn ghost" href={base}>Annuler</Link></div>
+        <div className="row"><Link className="btn ghost" href={href({ a: aIds })}>Choisir d’autres invités</Link><Link className="btn ghost" href={base}>Annuler</Link></div>
       </section>
     );
   }
   return (
     <>
-      <PageHeader eyebrow="Tables" title="Permuter les invités" sub="Échangez les places de deux invités assis à des tables différentes." />
+      <PageHeader eyebrow="Tables" title="Permuter les invités" sub="Échangez les places d’un ou plusieurs invités d’une table avec celles d’un ou plusieurs invités d’une autre table." />
       {step}
     </>
   );
