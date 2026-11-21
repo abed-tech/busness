@@ -16,16 +16,14 @@ export default async function Tables({ params, searchParams }: { params: Promise
   const tc = tableCount(evShape(ev), guests);
   const free = tables.filter((t) => !t.ghost).reduce((s, t) => s + t.free, 0);
   const name = (gid?: string) => guests.find((g) => g.id === gid)?.name;
-  const ids = (sp.swapped || "").split(",").filter(Boolean);
-  const swaps = ids.length % 2 ? [] : Array.from({ length: ids.length / 2 }, (_, i) => [name(ids[2 * i]), name(ids[2 * i + 1])]).filter(([x, y]) => x && y);
+  const [sa, sb] = (sp.swapped || "").split(",");
   const base = `/events/${id}/tables`;
   return (
     <>
       <PageHeader eyebrow="Préparer" title="Tables" sub={`${plur(tc, "table")} de ${ev.table_capacity} places · ${plur(free, "place libre", "places libres")} · ${plur(unplaced.length, "invitation")} sans table`} />
       {name(sp.complete) && <Notice tone="ok">{name(sp.complete)} placé(e) avec succès à la table {sp.t}. Tous les invités ont maintenant une table.</Notice>}
       {Number(sp.many) > 0 && !unplaced.length && <Notice tone="ok">{plur(Number(sp.many), "invitation placée", "invitations placées")} avec succès à la table {sp.t}. Tous les invités ont maintenant une table.</Notice>}
-      {swaps.length === 1 && <Notice tone="ok">Permutation enregistrée : {swaps[0][0]} et {swaps[0][1]} ont échangé leurs places.</Notice>}
-      {swaps.length > 1 && <Notice tone="ok">Permutation enregistrée : {swaps.length} échanges effectués ({swaps.map(([x, y]) => `${x} ↔ ${y}`).join(", ")}).</Notice>}
+      {name(sa) && name(sb) && <Notice tone="ok">Permutation enregistrée : {name(sa)} et {name(sb)} ont échangé leurs places.</Notice>}
       {!guests.length ? <Empty>Ajoutez d’abord des invités.</Empty> : (
         <>
           {unplaced.length > 0 && (
