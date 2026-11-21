@@ -6,6 +6,7 @@ import { tableData, kindHint } from "@/lib/tables";
 import { evShape, type GuestRow } from "@/lib/event";
 import { PageHeader, Notice, Empty } from "@/components/ui";
 import { CardAction } from "@/components/TableActions";
+import { PermuterPicker } from "@/components/PermuterPicker";
 import { confirmSwap } from "../actions";
 
 const UUID = /^[0-9a-f-]{36}$/;
@@ -26,25 +27,12 @@ export default async function Permuter({ params, searchParams }: { params: Promi
   const b = a && UUID.test(sp.b || "") ? placed.find((g) => g.id === sp.b && g.table_no !== a.table_no) : undefined;
   const href = (o: { a?: string; b?: string }) => `${base}/permuter?${new URLSearchParams(Object.entries(o).filter(([, v]) => v) as [string, string][]).toString()}`;
 
-  const List = ({ items, pick }: { items: GuestRow[]; pick: (g: GuestRow) => string }) => {
-    const by = new Map<number, GuestRow[]>();
-    for (const g of items) by.set(g.table_no!, [...(by.get(g.table_no!) || []), g]);
-    return (
-      <div className="grid" style={{ gap: 14 }}>
-        {[...by.entries()].sort((x, y) => x[0] - y[0]).map(([t, gs]) => (
-          <section key={t}>
-            <h3 style={{ fontSize: "1.1rem", marginBottom: 6 }}>Table {t}</h3>
-            <div className="list">{gs.map((g) => (
-              <Link key={g.id} className="li pickrow" href={pick(g)}>
-                <span style={{ flex: 1, minWidth: 0 }}><b>{g.name}</b><small className="hint" style={{ display: "block" }}>Table {g.table_no} · {kindHint(g)}</small></span>
-                <span aria-hidden="true">›</span>
-              </Link>
-            ))}</div>
-          </section>
-        ))}
-      </div>
-    );
-  };
+  const List = ({ items, pick }: { items: GuestRow[]; pick: (g: GuestRow) => string }) => (
+    <PermuterPicker
+      placeholder="Rechercher un nom, un numéro, un code ou une table"
+      items={items.map((g) => ({ id: g.id, name: g.name, table: g.table_no!, whatsapp: g.whatsapp || "", code: g.code || "", hint: kindHint(g), href: pick(g) }))}
+    />
+  );
 
   let step: ReactNode;
   if (placed.length < 2 || new Set(placed.map((g) => g.table_no)).size < 2) {
