@@ -11,7 +11,7 @@ const fold = (s: string) => s.toLowerCase().normalize("NFD").replace(/\p{Diacrit
  * On coche un ou plusieurs invités d'une même table (« Toute la table » coche tout le monde) puis on continue.
  * `param` = « a » ou « b » ; `keep` = valeur de « a » déjà choisie à l'étape 2.
  */
-export function PermuterPicker({ items, placeholder, base, param, keep, label }: { items: PickItem[]; placeholder: string; base: string; param: "a" | "b"; keep?: string; label: string }) {
+export function PermuterPicker({ items, placeholder, base, param, keep, label, single }: { items: PickItem[]; placeholder: string; base: string; param: "a" | "b"; keep?: string; label: string; single: boolean }) {
   const [q, setQ] = useState("");
   const [sel, setSel] = useState<string[]>([]);
   const f = fold(q.trim());
@@ -19,11 +19,15 @@ export function PermuterPicker({ items, placeholder, base, param, keep, label }:
   const shown = f ? items.filter((g) => fold(`${g.name} ${g.whatsapp} ${g.whatsapp.replace(/\D/g, "")} ${g.code} table ${g.table}`).includes(f) || String(g.table) === tableQ) : items;
   const by = new Map<number, PickItem[]>();
   for (const g of shown) by.set(g.table, [...(by.get(g.table) || []), g]);
-  const lock = sel.length ? items.find((g) => g.id === sel[0])!.table : 0; // table des invités déjà cochés
+  const tableOf = (id: string) => items.find((g) => g.id === id)!.table;
+  const tables = [...new Set(sel.map(tableOf))].sort((x, y) => x - y); // tables des invités cochés
+  const lock = single && tables.length ? tables[0] : 0; // à l'étape 2, une seule table
   const toggle = (id: string) => setSel((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  const full = (t: number) => items.filter((g) => g.table === t).every((g) => sel.includes(g.id));
   const toggleTable = (t: number) => setSel((s) => {
     const all = items.filter((g) => g.table === t).map((g) => g.id);
-    return all.every((i) => s.includes(i)) ? [] : all;
+    if (all.every((i) => s.includes(i))) return s.filter((i) => !all.includes(i));
+    return [...s.filter((i) => !all.includes(i)), ...all];
   });
   const next = `${base}/permuter?${new URLSearchParams({ ...(keep ? { a: keep } : {}), [param]: sel.join(".") }).toString()}`;
 
@@ -37,7 +41,7 @@ export function PermuterPicker({ items, placeholder, base, param, keep, label }:
         </div>
       </div>
       {f && <p className="hint" role="status" style={{ margin: "-6px 0 10px" }}>{shown.length ? `${shown.length} invité(s) sur ${items.length}` : ""}</p>}
-      <p className="hint" style={{ marginBottom: 10 }}>Cochez un ou plusieurs invités <b>d’une même table</b>.</p>
+      <p className="hint" style={{ marginBottom: 10 }}>{single ? <>Cochez un ou plusieurs invités <b>d’une même table</b>.</> : <>Cochez un ou plusieurs invités, <b>de la table que vous voulez</b>.</>}</p>
       {!shown.length ? (
         <div className="empty">Aucun invité assis ne correspond à « {q.trim()} ». <button type="button" className="btn ghost sm" onClick={() => setQ("")}>Effacer la recherche</button></div>
       ) : (
@@ -49,7 +53,7 @@ export function PermuterPicker({ items, placeholder, base, param, keep, label }:
                 <div className="row" style={{ justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                   <h3 style={{ fontSize: "1.1rem", margin: 0 }}>Table {t}</h3>
                   <button type="button" className="btn ghost sm" disabled={off} onClick={() => toggleTable(t)}>
-                    {lock === t && items.filter((g) => g.table === t).every((g) => sel.includes(g.id)) ? "Tout décocher" : "Toute la table"}
+                    {full(t) ? "Tout décocher" : "Toute la table"}
                   </button>
                 </div>
                 <div className="list">{gs.map((g) => (
@@ -67,7 +71,7 @@ export function PermuterPicker({ items, placeholder, base, param, keep, label }:
         {sel.length ? (
           <>
             <button type="button" className="btn ghost" onClick={() => setSel([])}>Vider</button>
-            <Link className="btn pay-main" href={next}>{label} ({sel.length} invité{sel.length > 1 ? "s" : ""}, table {lock})</Link>
+            <Link className="btn pay-main" href={next}>{label} ({sel.length} invité{sel.length > 1 ? "s" : ""}, table{tables.length > 1 ? "s" : ""} {tables.join(", ")})</Link>
           </>
         ) : <span className="hint">Aucun invité coché</span>}
       </div>

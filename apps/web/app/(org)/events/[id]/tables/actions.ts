@@ -5,6 +5,7 @@ import { checkMoves, planSeating, seats, tableCount, type Guest, type Plan } fro
 import { requireOrganizer, humanError } from "@/lib/auth";
 import { serverClient } from "@/lib/data/server";
 import { runAutoAssign } from "@/lib/guests";
+import { planGroupSwap } from "@/lib/tables";
 import type { ActionState } from "@/components/ConfirmAction";
 
 async function ctx(eventId: string) {
@@ -198,13 +199,12 @@ export async function confirmSwap(_: ActionState, fd: FormData): Promise<ActionS
   if (ga.some((g) => !g) || gb.some((g) => !g)) return { ok: false, message: "Invité introuvable." };
   const A = ga as typeof guests, B = gb as typeof guests;
   if ([...A, ...B].some((g) => !g.table_no)) return { ok: false, message: "Tous les invités doivent être placés à une table : pour placer un invité sans table, utilisez le placement manuel." };
-  const ta = A[0].table_no!, tb = B[0].table_no!;
-  if (A.some((g) => g.table_no !== ta) || B.some((g) => g.table_no !== tb)) return { ok: false, message: "Les invités d’un même côté doivent être à la même table." };
-  if (ta === tb) return { ok: false, message: "Ces invités sont déjà à la même table : rien à permuter." };
-  const moves: Record<string, number> = {};
-  for (const g of A) moves[g.id] = tb;
-  for (const g of B) moves[g.id] = ta;
-  const r = await save(id, moves, `Permutation : ${A.map((g) => g.name).join(", ")} (table ${tb}) ⇄ ${B.map((g) => g.name).join(", ")} (table ${ta})`);
+  const tb = B[0].table_no!;
+  if (B.some((g) => g.table_no !== tb)) return { ok: false, message: "Les invités avec qui échanger doivent être à la même table." };
+  if (A.some((g) => g.table_no === tb)) return { ok: false, message: "Ces invités sont déjà à la même table : rien à permuter." };
+  const moves = planGroupSwap(A, B);
+  const from = [...new Set(A.map((g) => g.table_no))].join(", ");
+  const r = await save(id, moves, `Permutation : ${A.map((g) => g.name).join(", ")} (tables ${from} → table ${tb}) ⇄ ${B.map((g) => g.name).join(", ")} (table ${tb} → tables ${[...new Set(B.map((g) => moves[g.id]))].join(", ")})`);
   if (!r?.ok) return { ok: false, message: `Permutation refusée, aucune place n’a changé : ${r?.message}` };
   redirect(`${base(id)}?swapped=${ida.join(".")},${idb.join(".")}`);
 }

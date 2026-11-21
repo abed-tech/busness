@@ -18,4 +18,25 @@ export async function tableData(id: string) {
 }
 
 export const seatsOf = (g: { kind: string | null }) => seats({ kind: (g.kind as Guest["kind"]) || null });
+/**
+ * Plan d'une permutation de groupes : les invités de A (une ou plusieurs tables) vont tous à la table de B ;
+ * ceux de B (une seule table) occupent les places libérées par A, table d'origine après table d'origine.
+ * Si ça ne tient pas, le surplus va à la table d'origine la moins pleine et la vérification de capacité refuse le plan.
+ */
+type Seated = { id: string; kind: string | null; table_no: number | null };
+export function planGroupSwap(A: Seated[], B: Seated[]): Record<string, number> {
+  const tb = B[0].table_no!;
+  const free = new Map<number, number>();
+  for (const g of A) free.set(g.table_no!, (free.get(g.table_no!) || 0) + seatsOf(g));
+  const origin = [...free.keys()].sort((x, y) => x - y);
+  const moves: Record<string, number> = {};
+  for (const g of A) moves[g.id] = tb;
+  for (const g of B) {
+    const n = seatsOf(g);
+    const t = origin.find((o) => free.get(o)! >= n) ?? origin.reduce((best, o) => (free.get(o)! > free.get(best)! ? o : best), origin[0]);
+    moves[g.id] = t;
+    free.set(t, free.get(t)! - n);
+  }
+  return moves;
+}
 export const kindHint = (g: { kind: string | null }) => (g.kind === "couple" ? "couple · 2 places" : !g.kind ? "statut à préciser · 1 place" : "1 place");
