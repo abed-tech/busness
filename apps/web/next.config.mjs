@@ -18,6 +18,9 @@ export default {
   reactStrictMode: true,
   transpilePackages: ["@ceremonia/core", "@ceremonia/server"],
   serverExternalPackages: ["pg"],
+  // Optimiseur /_next/image désactivé : l'application n'utilise pas next/image, et il pourrait sinon faire décoder
+  // par sharp/libvips, côté serveur, les photos envoyées par les utilisateurs (/media/event-photos/…).
+  images: { unoptimized: true },
   experimental: { serverActions: { allowedOrigins: [new URL(process.env.ORGANIZER_ORIGIN || "http://localhost:3000").host], bodySizeLimit: "7mb" } },
   async headers() {
     return [

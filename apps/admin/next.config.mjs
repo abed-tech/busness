@@ -17,6 +17,8 @@ export default {
   reactStrictMode: true,
   transpilePackages: ["@ceremonia/core", "@ceremonia/server"],
   serverExternalPackages: ["pg"],
+  // next/image n'est pas utilisé : l'optimiseur /_next/image (sharp) est coupé (surface d'attaque inutile)
+  images: { unoptimized: true },
   experimental: { serverActions: { allowedOrigins: [new URL(process.env.ADMIN_ORIGIN || "http://localhost:3100").host] } },
   async headers() {
     return [
